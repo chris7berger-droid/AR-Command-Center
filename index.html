@@ -32,6 +32,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-total b{color:#fff}
 .new-report-btn{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 12px;color:#94a3b8;font-size:11px;cursor:pointer;font-weight:600;display:inline-block}
 .new-report-btn:hover{background:#334155;color:#fff}
+.rpt-wrap{position:relative;display:inline-block}
+.rpt-btn{background:#0d5c4d;border:1px solid #1a8a72;border-radius:6px;padding:5px 12px;color:#30cfac;font-size:11px;cursor:pointer;font-weight:700;letter-spacing:0.03em}
+.rpt-btn:hover{background:#1a8a72;color:#fff}
+.rpt-drop{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#1e293b;border:1px solid #334155;border-radius:8px;min-width:280px;box-shadow:0 12px 32px rgba(0,0,0,0.4);z-index:200;padding:6px 0;animation:rptFade 0.12s ease}
+.rpt-drop.show{display:block}
+@keyframes rptFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.rpt-drop-hdr{padding:10px 16px 6px;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#64748b;text-transform:uppercase}
+.rpt-drop-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background 0.1s;color:#e2e8f0;font-size:13px;font-weight:500}
+.rpt-drop-item:hover{background:#334155}
+.rpt-drop-item .rdi-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.rpt-drop-item .rdi-text small{display:block;font-size:10px;color:#64748b;font-weight:400;margin-top:1px}
+.rpt-drop-div{height:1px;background:#334155;margin:6px 0}
+.rpt-tracker-row{padding:10px 16px;display:flex;align-items:center;gap:8px}
+.rpt-tracker-label{font-size:11px;color:#94a3b8;flex:1}
+.rpt-tracker-label small{display:block;font-size:10px;color:#64748b;margin-top:1px}
+.rpt-tracker-btn{background:#334155;border:1px solid #475569;border-radius:4px;padding:3px 10px;color:#94a3b8;font-size:10px;cursor:pointer;font-weight:600}
+.rpt-tracker-btn:hover{background:#475569;color:#fff}
+.rpt-tracker-btn.loaded{background:#0d5c4d;border-color:#1a8a72;color:#30cfac}
+.rpt-tracker-count{font-size:10px;color:#30cfac;padding:0 16px 8px;font-family:monospace}
 
 /* Tabs */
 .tab-bar{background:#0f172a;border-top:1px solid #1e293b;padding:0 20px;display:flex;gap:0;position:sticky;top:44px;z-index:99}
@@ -255,6 +274,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="topbar-right">
       <span class="topbar-total">Total: <b id="grand-total"></b></span>
       <label class="new-report-btn"><input type="file" accept=".xlsx,.xls,.csv" id="new-report-input" style="display:none">New Report</label>
+      <div class="rpt-wrap">
+        <button class="rpt-btn" id="rpt-toggle">Reports ▾</button>
+        <div class="rpt-drop" id="rpt-drop">
+          <div class="rpt-drop-hdr">Generate Report</div>
+          <div class="rpt-drop-item" id="rpt-health" title="Diagnostic snapshot of your AR">
+            <div class="rdi-icon" style="background:rgba(48,207,172,0.15);color:#30cfac">🩺</div>
+            <div class="rdi-text">Health Check<small>Anomalies, concentration risk, aging breakdown</small></div>
+          </div>
+          <div class="rpt-drop-item" id="rpt-action" title="Prioritized to-do list">
+            <div class="rdi-icon" style="background:rgba(59,130,246,0.15);color:#60a5fa">📋</div>
+            <div class="rdi-text">Action Plan<small>Clean up QB + chase cash priority list</small></div>
+          </div>
+          <div class="rpt-drop-div"></div>
+          <div class="rpt-drop-hdr">Billing Tracker (Optional)</div>
+          <div class="rpt-tracker-row">
+            <div class="rpt-tracker-label">Upload trackers for cross-reference<small>Finds unbilled jobs &amp; status mismatches</small></div>
+            <label class="rpt-tracker-btn" id="rpt-tracker-btn"><input type="file" accept=".xlsx,.xls" id="rpt-tracker-input" style="display:none" multiple>Upload</label>
+          </div>
+          <div class="rpt-tracker-count" id="rpt-tracker-status"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="tab-bar">
@@ -813,6 +853,420 @@ function handleFile(file){
   };reader.readAsArrayBuffer(file);
 }
 
+// === REPORT GENERATION ===
+var trackerData=[];
+
+function parseTrackers(files){
+  trackerData=[];
+  var pending=files.length;
+  Array.from(files).forEach(function(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var data=new Uint8Array(e.target.result);var wb=XLSX.read(data,{type:"array"});
+        wb.SheetNames.forEach(function(sn){
+          if(sn==="Check List"||sn==="Forecast"||sn==="Forecast Instructions"||sn==="Forecast Directions")return;
+          var ws=wb.Sheets[sn];var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+          var weekDate=null;
+          for(var r=0;r<Math.min(5,rows.length);r++){
+            for(var c=0;c<(rows[r]||[]).length;c++){
+              var v=rows[r][c];
+              if(v instanceof Date||(typeof v==="number"&&v>40000&&v<50000)){
+                var d=typeof v==="number"?new Date((v-25569)*86400000):v;
+                if(String(rows[r][0]||"").trim()==="Billing Week"){weekDate=d;break;}
+              }
+            }
+            if(weekDate)break;
+          }
+          if(!weekDate)return;
+          var hdrRow=-1;
+          for(var r2=0;r2<Math.min(8,rows.length);r2++){if(String(rows[r2][0]||"").indexOf("Job")===0){hdrRow=r2;break;}}
+          if(hdrRow<0)return;
+          for(var r3=hdrRow+1;r3<rows.length;r3++){
+            var rw=rows[r3];var job=String(rw[0]||"").trim();
+            if(!job||job.indexOf("Total for")===0)continue;
+            var amt=typeof rw[1]==="number"?rw[1]:(typeof rw[1]==="string"?parseFloat(rw[1].replace(/[^0-9.-]/g,"")):(rw[1]||0));
+            if(isNaN(amt))amt=0;
+            var status=String(rw[4]||"").trim();
+            var invNum=String(rw[5]||"").trim();
+            var notes2=String(rw[6]||"").trim();
+            if(status==="-"||!status)status="No Status";
+            trackerData.push({week:weekDate,weekStr:toDateStr(weekDate),job:job,amount:amt,status:status,invoiceRef:invNum,notes:notes2,sheetName:sn,fileName:file.name});
+          }
+        });
+      }catch(err){console.error("Tracker parse error:",err);}
+      pending--;
+      if(pending===0){
+        var el=document.getElementById("rpt-tracker-status");
+        el.textContent="✓ "+trackerData.length+" job entries loaded from "+files.length+" file"+(files.length>1?"s":"");
+        var btn=document.getElementById("rpt-tracker-btn");
+        btn.classList.add("loaded");btn.childNodes[btn.childNodes.length-1].textContent=" ✓ Loaded";
+      }
+    };reader.readAsArrayBuffer(file);
+  });
+}
+
+function extractJobNum(s){
+  var m=s.match(/^(\d{4,5})/);return m?m[1]:"";
+}
+
+function rptDate(){
+  var d=document.getElementById("report-date").textContent;return d||("as of "+toDateStr(new Date()));
+}
+
+function rptCSS(){
+  return ':root{--bg:#b5a896;--bg2:#bfb3a1;--bg3:#c8bcaa;--bg4:#a89b88;--ink:#1c1814;--ink2:#2d2720;--ink3:#4a4238;--ink4:#6b6358;--ink5:#887c6e;--border:rgba(28,24,20,0.12);--border2:rgba(28,24,20,0.2);--teal:#30cfac;--teal-dim:rgba(48,207,172,0.15);--teal-dark:#1a8a72;--teal-deep:#0d5c4d;--red:#c62828;--red-dim:rgba(198,40,40,0.1);--amber:#e65100;--amber-dim:rgba(230,81,0,0.1);--green:#2e7d32;--green-dim:rgba(46,125,50,0.12);--blue:#1565c0;--blue-dim:rgba(21,101,192,0.1);--dark:#1c1814;--font:"Barlow",sans-serif;--fontd:"Barlow Condensed",sans-serif}'+
+  '*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}'+
+  'html{scroll-behavior:smooth}'+
+  'body{font-family:var(--font);background:var(--bg);color:var(--ink2);line-height:1.6;-webkit-font-smoothing:antialiased}'+
+  'body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(60,50,35,0.04) 2px,rgba(60,50,35,0.04) 3px),repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(60,50,35,0.04) 2px,rgba(60,50,35,0.04) 3px),url("data:image/svg+xml,%3Csvg width=\'200\' height=\'200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.85\' numOctaves=\'6\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.04\'/%3E%3C/svg%3E"),radial-gradient(ellipse at 25% 15%,rgba(200,188,170,0.4) 0%,transparent 50%),radial-gradient(ellipse at 75% 85%,rgba(158,145,126,0.3) 0%,transparent 50%)}'+
+  'h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}'+
+  '.wrap{max-width:1100px;margin:0 auto;padding:0 24px;position:relative;z-index:1}'+
+  '.header{padding:48px 0 32px;border-bottom:1px solid var(--border2)}.header h1{font-size:32px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em}.header h1 span{color:var(--teal-deep)}.header p{color:var(--ink4);font-size:14px;margin-top:4px}'+
+  '.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:32px 0}.scard{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:20px;text-align:center;transition:all 0.2s}.scard:hover{box-shadow:0 4px 16px rgba(28,24,20,0.1);transform:translateY(-1px)}.scard .label{font-family:var(--fontd);font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:8px}.scard .val{font-family:var(--fontd);font-size:28px;font-weight:800;color:var(--ink)}.scard .val.teal{color:var(--teal-deep)}.scard .val.red{color:var(--red)}'+
+  '.sec{padding:40px 0 16px}.sec h2{font-size:20px;text-transform:uppercase;letter-spacing:0.06em;display:flex;align-items:center;gap:12px}.sec h2::before{content:"";width:24px;height:2px;background:var(--teal)}.sec p{color:var(--ink4);font-size:14px;margin-top:4px}'+
+  '.slabel{font-family:var(--fontd);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:8px 16px;border-radius:4px;display:inline-flex;align-items:center;gap:8px;margin:24px 0 12px}.slabel.red{background:var(--red-dim);color:var(--red)}.slabel.amber{background:var(--amber-dim);color:var(--amber)}.slabel.green{background:var(--green-dim);color:var(--green)}.slabel.blue{background:var(--blue-dim);color:var(--blue)}.slabel.gray{background:rgba(28,24,20,0.06);color:var(--ink3)}'+
+  '.sdesc{font-size:13px;color:var(--ink4);margin-bottom:16px;max-width:700px}'+
+  '.item{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:16px 20px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;cursor:pointer;transition:all 0.2s;border-left:3px solid transparent}.item:hover{box-shadow:0 2px 10px rgba(28,24,20,0.06);transform:translateY(-1px)}.item .cust{font-family:var(--fontd);font-size:15px;font-weight:700;color:var(--ink)}.item .det{font-size:12px;color:var(--ink3);margin-top:2px}.item .fix{font-size:12px;color:var(--teal-deep);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none;font-weight:500}.item.open .fix{display:block}.item .amt{font-family:var(--fontd);font-size:18px;font-weight:800;color:var(--ink);white-space:nowrap;text-align:right}.item .amt.neg{color:var(--red)}'+
+  '.cblock{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;margin-bottom:10px;overflow:hidden;transition:all 0.2s}.cblock:hover{box-shadow:0 2px 10px rgba(28,24,20,0.06)}.chead{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}.chead .cn{font-family:var(--fontd);font-size:16px;font-weight:700;color:var(--ink)}.chead .cn small{font-weight:400;color:var(--ink4);font-size:12px;margin-left:8px}.chead .ct{font-family:var(--fontd);font-size:20px;font-weight:800;color:var(--ink)}.cinvs{display:none;border-top:1px solid var(--border);padding:0 20px}.cblock.open .cinvs{display:block}.cinv{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--ink3)}.cinv:last-child{border-bottom:none}.cinv .ca{font-family:var(--fontd);font-weight:700;color:var(--ink);font-size:14px}'+
+  '.tabs{display:flex;gap:4px;padding:24px 0 0;position:sticky;top:0;z-index:10;background:var(--bg)}.tab{font-family:var(--fontd);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:12px 24px;border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;background:var(--bg2);color:var(--ink3);cursor:pointer;transition:all 0.2s}.tab:hover{color:var(--ink)}.tab.active{background:var(--bg3);color:var(--ink);border-color:var(--border2);box-shadow:0 2px 0 var(--bg3)}.tab-bar2{height:1px;background:var(--border2);margin-bottom:32px}'+
+  '.panel{display:none}.panel.active{display:block}'+
+  '.stats{display:flex;gap:12px;padding:24px 0}.stat{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:16px 20px;flex:1;text-align:center}.stat .sl{font-family:var(--fontd);font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}.stat .sv{font-family:var(--fontd);font-size:24px;font-weight:800;color:var(--ink)}.stat .sv.red{color:var(--red)}.stat .sv.teal{color:var(--teal-deep)}'+
+  '.buckets{display:flex;gap:2px;height:52px;border-radius:6px;overflow:hidden;margin:16px 0 8px;box-shadow:0 2px 8px rgba(28,24,20,0.1)}.bucket{display:flex;align-items:center;justify-content:center;flex-direction:column;transition:all 0.3s;cursor:pointer}.bucket:hover{filter:brightness(1.1)}.bucket .blab{font-family:var(--fontd);font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.85)}.bucket .bval{font-family:var(--fontd);font-size:14px;font-weight:800;color:#fff}.bucket-legend{display:flex;gap:24px;margin-bottom:24px;flex-wrap:wrap}.bucket-legend span{font-size:12px;color:var(--ink3);display:flex;align-items:center;gap:6px}'+
+  '.acard{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:20px 24px;display:grid;grid-template-columns:80px 1fr auto;gap:16px;align-items:start;cursor:pointer;transition:all 0.2s;border-left:3px solid transparent;margin-bottom:10px}.acard:hover{box-shadow:0 4px 16px rgba(28,24,20,0.08);transform:translateY(-1px)}.acard.high{border-left-color:var(--red)}.acard.medium{border-left-color:var(--amber)}.acard.info{border-left-color:var(--blue)}.acard .badge{font-family:var(--fontd);font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 10px;border-radius:4px;text-align:center}.acard.high .badge{background:var(--red-dim);color:var(--red)}.acard.medium .badge{background:var(--amber-dim);color:var(--amber)}.acard.info .badge{background:var(--blue-dim);color:var(--blue)}.acard .acust{font-family:var(--fontd);font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px}.acard .adetail{font-size:13px;color:var(--ink2);line-height:1.5}.acard .aaction{font-size:12px;color:var(--teal-deep);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none;font-weight:500}.acard.open .aaction{display:block}.acard .atype{font-size:11px;color:var(--ink5);margin-top:2px}.acard .amt{font-family:var(--fontd);font-size:20px;font-weight:800;color:var(--ink);white-space:nowrap}'+
+  '.filters{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}.fbtn{font-family:var(--fontd);font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:6px 14px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--ink3);cursor:pointer;transition:all 0.2s}.fbtn:hover{border-color:var(--ink3);color:var(--ink)}.fbtn.active{background:var(--teal-dim);border-color:var(--teal);color:var(--teal-deep)}'+
+  '.ctable{width:100%;border-collapse:collapse;margin:16px 0 32px}.ctable th{font-family:var(--fontd);font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink4);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2)}.ctable td{padding:12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink2)}.ctable tr:hover{background:var(--bg3)}.ctable .cname{font-weight:600;color:var(--ink)}.ctable .camt{font-family:var(--fontd);font-weight:700;font-size:15px;color:var(--ink)}.ctable .cbar{height:4px;border-radius:2px;background:var(--teal);min-width:4px}'+
+  '.glossary{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:28px 32px;margin:32px 0}.glossary h3{font-size:16px;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.06em}.gterm{margin-bottom:12px}.gterm dt{font-family:var(--fontd);font-size:13px;font-weight:700;color:var(--teal-deep);text-transform:uppercase;letter-spacing:0.04em}.gterm dd{font-size:13px;color:var(--ink2);margin-top:2px}'+
+  '.foot{background:var(--dark);padding:24px;border-radius:8px;margin:32px 0;text-align:center;font-size:11px;color:rgba(255,255,255,0.4)}.foot span{color:var(--teal)}'+
+  '@media(max-width:768px){.summary{grid-template-columns:1fr 1fr}.stats{flex-wrap:wrap}.stat{min-width:45%}.item{grid-template-columns:1fr}.acard{grid-template-columns:1fr;gap:8px}.acard .amt{text-align:left}}'+
+  '@media print{body::before{display:none}.wrap{max-width:100%}}';
+}
+
+function rptFmt(n){
+  if(n===0)return"$0";
+  var neg=n<0;var a=Math.abs(n);
+  if(a>=1000)return(neg?"-":"")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  return(neg?"-":"")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function buildAnomalies(){
+  var anomalies=[];
+  var today=new Date();
+  // Stale invoices (91+ days)
+  customerList.forEach(function(c){
+    c.invoices.forEach(function(inv){
+      if(inv.type!=="Invoice"||inv.openBalance<=0)return;
+      var d=parseDate(inv.date);if(!d)return;
+      var age=Math.floor((today-d)/(1000*60*60*24));
+      if(age>365){
+        anomalies.push({type:"STALE INVOICE",severity:"HIGH",customer:c.name,detail:"Invoice #"+inv.num+" for "+rptFmt(inv.openBalance)+" is from "+inv.date+" \u2014 "+(age>730?Math.floor(age/365)+" YEARS old":Math.floor(age/30)+" months old")+". "+inv.job,amount:inv.openBalance,action:age>730?"Likely uncollectable at this age. Evaluate for write-off or send final demand letter.":"Escalate immediately. Likelihood of collection drops each month at this age."});
+      }else if(age>180&&inv.openBalance<500){
+        anomalies.push({type:"SMALL STALE BALANCE",severity:"MEDIUM",customer:c.name,detail:"Invoice #"+inv.num+" \u2014 "+rptFmt(inv.openBalance)+", "+Math.floor(age)+" days past due",amount:inv.openBalance,action:"Write off. Not worth the phone call."});
+      }
+    });
+  });
+  // Credits / overpayments
+  customerList.forEach(function(c){
+    c.invoices.forEach(function(inv){
+      if(inv.openBalance>=0)return;
+      anomalies.push({type:"CREDIT/OVERPAYMENT",severity:"MEDIUM",customer:c.name,detail:"Negative balance of "+rptFmt(inv.openBalance)+" \u2014 "+(inv.type||"")+" "+(inv.num?"#"+inv.num:"")+(inv.date?" from "+inv.date:""),amount:inv.openBalance,action:"Apply credit to open invoices or issue refund"});
+    });
+  });
+  // Concentration risk (>$25K)
+  var sorted=customerList.slice().sort(function(a,b){return b.total-a.total;});
+  sorted.forEach(function(c){
+    if(c.total>25000){
+      anomalies.push({type:"CONCENTRATION RISK",severity:"INFO",customer:c.name,detail:rptFmt(c.total)+" total open across "+c.invoices.filter(function(i){return i.openBalance>0}).length+" invoices",amount:c.total,action:"Prioritize collection \u2014 large exposure"});
+    }
+  });
+  // Cross-reference: check if credits match another customer
+  var credits=[];var debits=[];
+  customerList.forEach(function(c){
+    var credTotal=0,debTotal=0;
+    c.invoices.forEach(function(inv){if(inv.openBalance<0)credTotal+=inv.openBalance;else debTotal+=inv.openBalance;});
+    if(credTotal<-1000)credits.push({name:c.name,amount:credTotal});
+    if(debTotal>1000)debits.push({name:c.name,amount:debTotal});
+  });
+  credits.forEach(function(cr){
+    debits.forEach(function(db){
+      if(cr.name===db.name)return;
+      // Check if names share common words
+      var cWords=cr.name.toLowerCase().split(/\s+/);var dWords=db.name.toLowerCase().split(/\s+/);
+      var shared=cWords.filter(function(w){return w.length>2&&dWords.indexOf(w)>-1;});
+      if(shared.length>0&&Math.abs(cr.amount+db.amount)<Math.abs(cr.amount)*0.15){
+        anomalies.push({type:"POSSIBLE MISAPPLIED PAYMENT",severity:"HIGH",customer:cr.name+" / "+db.name,detail:cr.name+" has a "+rptFmt(Math.abs(cr.amount))+" credit. "+db.name+" owes "+rptFmt(db.amount)+". These may be related \u2014 check if payment was applied to wrong customer.",amount:Math.abs(cr.amount),action:"In QuickBooks: open "+cr.name+"'s account, check if the payment should have been applied to "+db.name+"'s invoices. This could clear "+rptFmt(Math.min(Math.abs(cr.amount),db.amount))+" instantly."});
+      }
+    });
+  });
+  return anomalies;
+}
+
+function buildTrackerFindings(){
+  if(!trackerData.length)return[];
+  var findings=[];
+  var today=new Date();
+  // Group tracker entries by job number
+  var byJob={};
+  trackerData.forEach(function(t){
+    var jn=extractJobNum(t.job);if(!jn)return;
+    if(!byJob[jn])byJob[jn]={job:t.job,entries:[]};
+    byJob[jn].entries.push(t);
+  });
+  // Find jobs stuck on hold for 2+ weeks
+  Object.keys(byJob).forEach(function(jn){
+    var j=byJob[jn];
+    var holds=j.entries.filter(function(e){return e.status.indexOf("Hold")>-1;});
+    if(holds.length>=2){
+      var weeks=holds.map(function(h){return h.weekStr;});
+      findings.push({type:"STUCK ON HOLD",severity:"MEDIUM",customer:j.job,detail:"On hold for "+holds.length+" weeks: "+weeks.slice(-3).join(", "),amount:0,action:"Sales team needs to resolve or job should be billed/closed"});
+    }
+  });
+  // Jobs with "On Going, nothing to bill" for 3+ weeks
+  Object.keys(byJob).forEach(function(jn){
+    var j=byJob[jn];
+    var ongoing=j.entries.filter(function(e){return e.status.indexOf("On Going")>-1||e.status.indexOf("nothing to bill")>-1;});
+    if(ongoing.length>=3){
+      findings.push({type:"BILLING STALL",severity:"MEDIUM",customer:j.job,detail:"\"Nothing to bill\" for "+ongoing.length+" consecutive weeks. Last: "+ongoing[ongoing.length-1].weekStr,amount:0,action:"Check if work is actually happening. If yes, investigate why billing is blocked."});
+    }
+  });
+  // Current week jobs with no status or "-"
+  var recentWeeks=trackerData.map(function(t){return t.week.getTime();});
+  var maxWeek=new Date(Math.max.apply(null,recentWeeks));
+  var currentWeekJobs=trackerData.filter(function(t){return t.week.getTime()===maxWeek.getTime()&&(t.status==="No Status"||t.status==="-");});
+  if(currentWeekJobs.length){
+    currentWeekJobs.forEach(function(j){
+      findings.push({type:"UNBILLED THIS WEEK",severity:"HIGH",customer:j.job,detail:"On this week's tracker ("+j.weekStr+") with no billing status set",amount:j.amount||0,action:"Bill this job or set a status"});
+    });
+  }
+  // Jobs on tracker marked "Invoice Sent" but no matching invoice in QB
+  var qbJobNums={};
+  allInvoices.forEach(function(inv){
+    var jn=extractJobNum(inv.job||inv.num||"");if(jn)qbJobNums[jn]=true;
+    // Also try the full name field
+    var jn2=extractJobNum(inv.fullName||"");if(jn2)qbJobNums[jn2]=true;
+  });
+  Object.keys(byJob).forEach(function(jn){
+    var j=byJob[jn];
+    var sentEntries=j.entries.filter(function(e){return e.status.indexOf("Invoice Sent")>-1&&e.amount>0;});
+    if(sentEntries.length>0&&!qbJobNums[jn]){
+      var totalSent=sentEntries.reduce(function(s,e){return s+e.amount;},0);
+      if(totalSent>0){
+        findings.push({type:"TRACKER/QB MISMATCH",severity:"HIGH",customer:j.job,detail:"Tracker shows "+rptFmt(totalSent)+" invoiced across "+sentEntries.length+" entries, but no matching job # found in QB aging report",amount:totalSent,action:"Check if invoice was entered in QB. Job may have been billed but not recorded."});
+      }
+    }
+  });
+  return findings;
+}
+
+function generateHealthCheck(){
+  var t=getTotals();
+  var buckets={CURRENT:t.current,"1 - 30 days past due":t.days30,"31 - 60 days past due":t.days60,"61 - 90 days past due":t.days90,"91 or more days past due":t.over90};
+  var totalCredits=0;var numInv=0;
+  allInvoices.forEach(function(inv){if(inv.openBalance<0)totalCredits+=inv.openBalance;if(inv.type==="Invoice"&&inv.openBalance>0)numInv++;});
+  var anomalies=buildAnomalies().concat(buildTrackerFindings());
+  anomalies.sort(function(a,b){var sev={HIGH:0,MEDIUM:1,INFO:2};return(sev[a.severity]||3)-(sev[b.severity]||3);});
+  var topCusts=customerList.slice().sort(function(a,b){return b.total-a.total;}).slice(0,15).map(function(c){
+    var oldest="";c.invoices.forEach(function(inv){var d=inv.date;if(d&&(!oldest||d<oldest))oldest=d;});
+    return{name:c.name,total:c.total,count:c.invoices.filter(function(i){return i.openBalance>0;}).length,oldest:oldest};
+  });
+
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>AR Health Check</title><link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet"><style>'+rptCSS()+'</style></head><body><div class="wrap">';
+  html+='<div class="header"><h1>AR Health <span>Check</span></h1><p>High Desert Surface Prep \u2014 '+rptDate()+((trackerData.length)?' \u2014 Cross-referenced with billing trackers':'')+'</p></div>';
+  html+='<div class="summary">';
+  html+='<div class="scard"><div class="label">Total Open AR</div><div class="val">'+rptFmt(t.total)+'</div></div>';
+  html+='<div class="scard"><div class="label">Net AR (after credits)</div><div class="val teal">'+rptFmt(t.total+totalCredits)+'</div></div>';
+  html+='<div class="scard"><div class="label">Open Invoices</div><div class="val">'+numInv+'</div></div>';
+  html+='<div class="scard"><div class="label">Credits to Apply</div><div class="val red">'+rptFmt(totalCredits)+'</div></div>';
+  html+='<div class="scard"><div class="label">Retention Held</div><div class="val">'+rptFmt(t.retention)+'</div></div>';
+  html+='</div>';
+  // Bucket bar
+  var bOrder=["CURRENT","1 - 30 days past due","31 - 60 days past due","61 - 90 days past due","91 or more days past due"];
+  var bColors=["#2e7d32","#689f38","#e65100","#d84315","#c62828"];
+  var bLabels=["Current","1-30","31-60","61-90","91+"];
+  html+='<div class="sec"><h2>Aging Breakdown</h2><p>Where your money is sitting. Green = on time. Red = way overdue.</p></div>';
+  html+='<div class="buckets">';
+  bOrder.forEach(function(key,i){var val=buckets[key]||0;var pct=val/t.total*100;if(pct>0)html+='<div class="bucket" style="width:'+pct+'%;background:'+bColors[i]+'"><div class="blab">'+bLabels[i]+'</div><div class="bval">'+rptFmt(val)+'</div></div>';});
+  html+='</div><div class="bucket-legend">';
+  bOrder.forEach(function(key,i){var val=buckets[key]||0;var pct=(val/t.total*100).toFixed(1);html+='<span><span style="background:'+bColors[i]+';width:10px;height:10px;border-radius:2px;display:inline-block"></span> '+bLabels[i]+': '+rptFmt(val)+' ('+pct+'%)</span>';});
+  html+='</div>';
+  // Anomalies
+  html+='<div class="sec"><h2>Findings & Anomalies</h2><p>Issues found by analyzing your AR aging report'+(trackerData.length?' and billing trackers':'')+'. Click any card for the recommended action.</p></div>';
+  html+='<div id="filters" class="filters"></div><div id="anomalies"></div>';
+  // Customer table
+  html+='<div class="sec"><h2>Who Owes You</h2><p>Your top customers by open balance.</p></div>';
+  var maxAmt=topCusts.length?topCusts[0].total:1;
+  html+='<table class="ctable"><thead><tr><th>#</th><th>Customer</th><th>Open Balance</th><th>Invoices</th><th>Oldest</th><th style="width:30%"></th></tr></thead><tbody>';
+  topCusts.forEach(function(c,i){html+='<tr><td style="color:var(--ink4)">'+(i+1)+'</td><td class="cname">'+c.name+'</td><td class="camt">'+rptFmt(c.total)+'</td><td style="text-align:center">'+c.count+'</td><td style="color:var(--ink4);font-size:12px">'+(c.oldest||"\u2014")+'</td><td><div class="cbar" style="width:'+(c.total/maxAmt*100).toFixed(1)+'%"></div></td></tr>';});
+  html+='</tbody></table>';
+  // Glossary
+  html+='<div class="glossary"><h3>What Does This Mean? \u2014 AR Glossary</h3><dl>';
+  html+='<div class="gterm"><dt>Current</dt><dd>Invoices not yet past their due date. Healthy money \u2014 owed but not late.</dd></div>';
+  html+='<div class="gterm"><dt>1-30 Days Past Due</dt><dd>Normal for construction \u2014 most GCs pay in this window. Follow up with a friendly reminder.</dd></div>';
+  html+='<div class="gterm"><dt>31-60 Days Past Due</dt><dd>Getting stale. Active collection needed \u2014 phone calls, emails, AP department escalation.</dd></div>';
+  html+='<div class="gterm"><dt>61-90 Days Past Due</dt><dd>Problem territory. Involve your sales contact and consider a formal demand letter.</dd></div>';
+  html+='<div class="gterm"><dt>91+ Days Past Due</dt><dd>Critical. Every day makes collection harder. Consider mechanics liens or write-off evaluation.</dd></div>';
+  html+='<div class="gterm"><dt>Retention</dt><dd>Money held back by the GC (usually 5-10%) until project completion. Track separately.</dd></div>';
+  html+='<div class="gterm"><dt>Credit / Overpayment</dt><dd>Negative balance \u2014 customer paid more than invoiced, or payment wasn\'t applied correctly.</dd></div>';
+  html+='<div class="gterm"><dt>Concentration Risk</dt><dd>Too much AR with one customer. If they slow-pay, your cash flow takes a big hit.</dd></div>';
+  html+='</dl></div>';
+  html+='<div class="foot">Generated by <span>SubConPro</span> AR Command \u2014 subconpro.com</div></div>';
+  // Script for interactivity
+  html+='<script>';
+  html+='var anomalies='+JSON.stringify(anomalies)+';';
+  html+='var $=function(n){if(Math.abs(n)>=1000)return(n<0?"-":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});return(n<0?"-":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});};';
+  html+='var activeFilter="ALL";';
+  html+='function renderFilters(){var types=["ALL","HIGH","MEDIUM","INFO"];var labels=["All Findings","\\ud83d\\udd34 Critical","\\ud83d\\udfe0 Investigate","\\ud83d\\udd35 Watch"];document.getElementById("filters").innerHTML=types.map(function(f,i){return\'<button class="fbtn \'+(activeFilter===f?"active":"")+"\\\" onclick=\\\"setFilter(\'"+f+"\')\\\">"+labels[i]+" ("+(f==="ALL"?anomalies.length:anomalies.filter(function(a){return a.severity===f;}).length)+")</button>";}).join("");}';
+  html+='function setFilter(f){activeFilter=f;renderFilters();renderAnomalies();}';
+  html+='function renderAnomalies(){var filtered=activeFilter==="ALL"?anomalies:anomalies.filter(function(a){return a.severity===activeFilter;});document.getElementById("anomalies").innerHTML=filtered.map(function(a){return \'<div class="acard \'+a.severity.toLowerCase()+\'" onclick="this.classList.toggle(\\\'open\\\')">\'+\'<div><div class="badge">\'+a.severity+\'</div><div class="atype">\'+a.type+\'</div></div>\'+\'<div><div class="acust">\'+a.customer+\'</div><div class="adetail">\'+a.detail+\'</div><div class="aaction">\\u2192 \'+a.action+\'</div></div>\'+\'<div class="amt">\'+(a.amount?$(a.amount):"\\u2014")+\'</div></div>\';}).join("");}';
+  html+='renderFilters();renderAnomalies();';
+  html+='<\/script></body></html>';
+  var w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+}
+
+function generateActionPlan(){
+  var today=new Date();
+  var cleanupItems=[];var chaseGroups={over90:[],days90:[],days60:[],days30:[],current:[]};
+
+  // Build cleanup items (credits, small stales, misapplied)
+  customerList.forEach(function(c){
+    c.invoices.forEach(function(inv){
+      if(inv.openBalance<0){
+        cleanupItems.push({customer:c.name,detail:"Unapplied credit/overpayment \u2014 "+(inv.type||"")+" "+(inv.num?"#"+inv.num:"")+(inv.date?" from "+inv.date:""),amount:inv.openBalance,fix:"Apply to this customer's open invoices in QB \u2192 Receive Payment \u2192 apply to oldest invoices",priority:Math.abs(inv.openBalance)>1000?1:3});
+      }
+      if(inv.type==="Invoice"&&inv.openBalance>0&&inv.openBalance<500){
+        var d=parseDate(inv.date);if(!d)return;
+        var age=Math.floor((today-d)/(1000*60*60*24));
+        if(age>180){
+          cleanupItems.push({customer:c.name,detail:"Small stale balance \u2014 Invoice #"+inv.num+" \u2014 "+rptFmt(inv.openBalance)+", "+Math.floor(age)+" days past due",amount:inv.openBalance,fix:"Write off. Not worth the phone call.",priority:3});
+        }
+      }
+    });
+  });
+  // Check for misapplied payments (same logic as anomalies)
+  var credits2=[];var debits2=[];
+  customerList.forEach(function(c){
+    var credTotal=0,debTotal=0;
+    c.invoices.forEach(function(inv){if(inv.openBalance<0)credTotal+=inv.openBalance;else debTotal+=inv.openBalance;});
+    if(credTotal<-1000)credits2.push({name:c.name,amount:credTotal});
+    if(debTotal>1000)debits2.push({name:c.name,amount:debTotal});
+  });
+  credits2.forEach(function(cr){
+    debits2.forEach(function(db){
+      if(cr.name===db.name)return;
+      var cWords=cr.name.toLowerCase().split(/\s+/);var dWords=db.name.toLowerCase().split(/\s+/);
+      var shared=cWords.filter(function(w){return w.length>2&&dWords.indexOf(w)>-1;});
+      if(shared.length>0){
+        cleanupItems.push({customer:"\u26a0\ufe0f "+cr.name+" / "+db.name+" \u2014 Check This",detail:cr.name+" has a "+rptFmt(Math.abs(cr.amount))+" credit. "+db.name+" owes "+rptFmt(db.amount)+". Are these the same company?",amount:0,amtDisplay:"~"+rptFmt(Math.min(Math.abs(cr.amount),db.amount))+" fix",fix:"In QuickBooks: open "+cr.name+"'s account, check if payments should have been applied to "+db.name+"'s invoices.",priority:1,special:true});
+      }
+    });
+  });
+  cleanupItems.sort(function(a,b){return a.priority-b.priority||Math.abs(b.amount)-Math.abs(a.amount);});
+
+  // Build chase groups (exclude retention, collections, goback)
+  customerList.forEach(function(c){
+    c.invoices.forEach(function(inv){
+      if(inv.type!=="Invoice"||inv.openBalance<=0)return;
+      if(isRetention(inv,c.name)||isCollections(inv,c.name)||isGoback(inv,c.name))return;
+      var d=parseDate(inv.dueDate||inv.date);if(!d)return;
+      var age=Math.floor((today-d)/(1000*60*60*24));
+      if(age>90)chaseGroups.over90.push({inv:inv,cust:c.name,age:age});
+      else if(age>60)chaseGroups.days90.push({inv:inv,cust:c.name,age:age});
+      else if(age>30)chaseGroups.days60.push({inv:inv,cust:c.name,age:age});
+      else if(age>0)chaseGroups.days30.push({inv:inv,cust:c.name,age:age});
+      else chaseGroups.current.push({inv:inv,cust:c.name,age:age});
+    });
+  });
+
+  // Group chase items by customer within each bucket
+  function groupByCustomer(items){
+    var g={};items.forEach(function(it){if(!g[it.cust])g[it.cust]={name:it.cust,invs:[],total:0};g[it.cust].invs.push(it.inv);g[it.cust].total+=it.inv.openBalance;});
+    return Object.values(g).sort(function(a,b){return b.total-a.total;});
+  }
+
+  var trackerFindings=buildTrackerFindings();
+
+  // Build HTML
+  var cleanupValue=cleanupItems.reduce(function(s,it){return s+Math.abs(it.amount);},0);
+  var biggestFix=cleanupItems.reduce(function(m,it){return Math.max(m,Math.abs(it.amount));},0);
+
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>AR Action Plan</title><link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet"><style>'+rptCSS()+'</style></head><body><div class="wrap">';
+  html+='<div class="header" style="border-bottom:none;padding-bottom:0"><h1>AR Action <span>Plan</span></h1><p>High Desert Surface Prep \u2014 '+rptDate()+' \u2014 Two lists. That\'s it.</p></div>';
+
+  // Tabs
+  var tabCount=2+(trackerFindings.length?1:0);
+  html+='<div class="tabs"><div class="tab active" onclick="showPanel(\'cleanup\')">1. Clean Up QB</div><div class="tab" onclick="showPanel(\'chase\')">2. Chase Cash</div>';
+  if(trackerFindings.length)html+='<div class="tab" onclick="showPanel(\'tracker\')">3. Billing Gaps</div>';
+  html+='</div><div class="tab-bar2"></div>';
+
+  // Panel 1: Cleanup
+  html+='<div id="cleanup" class="panel active">';
+  html+='<div class="stats"><div class="stat"><div class="sl">Items to Fix</div><div class="sv">'+cleanupItems.length+'</div></div><div class="stat"><div class="sl">Cleanup Value</div><div class="sv red">'+rptFmt(cleanupValue)+'</div></div><div class="stat"><div class="sl">Biggest Single Fix</div><div class="sv red">'+rptFmt(biggestFix)+'</div></div></div>';
+  html+='<p style="font-size:14px;color:var(--ink3);margin-bottom:8px">These items are making your AR report <strong style="color:var(--ink)">inaccurate</strong>. They\'re not real money to collect \u2014 they\'re QB housekeeping. Fix them and your numbers get honest. Click any row for the exact fix.</p>';
+
+  var p1=cleanupItems.filter(function(it){return it.priority===1;});
+  var p3=cleanupItems.filter(function(it){return it.priority===3;});
+  if(p1.length){
+    html+='<div class="slabel red">Priority 1 \u2014 Fix This Week</div><div class="sdesc">Large unapplied credits that are inflating your AR and hiding real numbers.</div>';
+    p1.forEach(function(it){
+      html+='<div class="item" style="border-left-color:var(--red)'+(it.special?';background:rgba(198,40,40,0.04)':'')+'" onclick="this.classList.toggle(\'open\')"><div><div class="cust">'+it.customer+'</div><div class="det">'+it.detail+'</div><div class="fix">\u2192 '+it.fix+'</div></div><div class="amt'+(it.amount<0?' neg':'')+'">'+(it.amtDisplay||rptFmt(it.amount))+'</div></div>';
+    });
+  }
+  if(p3.length){
+    html+='<div class="slabel gray">Priority 3 \u2014 Batch Cleanup</div><div class="sdesc">Small old balances and penny credits. Do these in one sitting \u2014 20 minutes of QB work.</div>';
+    p3.forEach(function(it){
+      html+='<div class="item" onclick="this.classList.toggle(\'open\')"><div><div class="cust">'+it.customer+'</div><div class="det">'+it.detail+'</div><div class="fix">\u2192 '+it.fix+'</div></div><div class="amt'+(it.amount<0?' neg':'')+'">'+rptFmt(it.amount)+'</div></div>';
+    });
+  }
+  html+='</div>';
+
+  // Panel 2: Chase Cash
+  html+='<div id="chase" class="panel">';
+  var chaseTotal=chaseGroups.over90.concat(chaseGroups.days90,chaseGroups.days60,chaseGroups.days30).reduce(function(s,it){return s+it.inv.openBalance;},0);
+  html+='<div class="stats"><div class="stat"><div class="sl">Past Due Total</div><div class="sv red">'+rptFmt(chaseTotal)+'</div></div><div class="stat"><div class="sl">91+ Days</div><div class="sv red">'+rptFmt(chaseGroups.over90.reduce(function(s,it){return s+it.inv.openBalance;},0))+'</div></div><div class="stat"><div class="sl">Current (Not Due)</div><div class="sv teal">'+rptFmt(chaseGroups.current.reduce(function(s,it){return s+it.inv.openBalance;},0))+'</div></div></div>';
+
+  var tiers=[
+    {items:chaseGroups.over90,cls:"red",icon:"\ud83d\udd34",label:"91+ Days \u2014 Escalate Now",desc:"Every day makes collection harder. Call today."},
+    {items:chaseGroups.days90,cls:"amber",icon:"\ud83d\udfe0",label:"61\u201390 Days \u2014 Demand",desc:"Involve your sales contact on the job. Consider formal demand letter."},
+    {items:chaseGroups.days60,cls:"amber",icon:"\ud83d\udfe1",label:"31\u201360 Days \u2014 Follow Up",desc:"Active collection. Phone calls, emails, AP escalation."},
+    {items:chaseGroups.days30,cls:"blue",icon:"\ud83d\udd35",label:"1\u201330 Days \u2014 Remind",desc:"Normal for construction. Send a friendly reminder."},
+    {items:chaseGroups.current,cls:"green",icon:"\u2705",label:"Current \u2014 Track",desc:"Not due yet. No action needed, but know who owes you what."}
+  ];
+  tiers.forEach(function(tier){
+    if(!tier.items.length)return;
+    var tierTotal=tier.items.reduce(function(s,it){return s+it.inv.openBalance;},0);
+    html+='<div class="slabel '+tier.cls+'">'+tier.icon+' '+tier.label+' \u2014 '+rptFmt(tierTotal)+'</div><div class="sdesc">'+tier.desc+'</div>';
+    var groups=groupByCustomer(tier.items);
+    groups.forEach(function(g){
+      html+='<div class="cblock" onclick="this.classList.toggle(\'open\')">';
+      html+='<div class="chead"><div class="cn">'+g.name+'<small>'+g.invs.length+' inv</small></div><div class="ct">'+rptFmt(g.total)+'</div></div>';
+      html+='<div class="cinvs">';
+      g.invs.sort(function(a,b){return b.openBalance-a.openBalance;}).forEach(function(inv){
+        html+='<div class="cinv"><span>#'+escH(inv.num)+' \u00b7 '+escH(inv.date)+' \u2014 '+escH(inv.job||inv.fullName)+'</span><span class="ca">'+rptFmt(inv.openBalance)+'</span></div>';
+      });
+      html+='</div></div>';
+    });
+  });
+  html+='</div>';
+
+  // Panel 3: Tracker findings (if available)
+  if(trackerFindings.length){
+    html+='<div id="tracker" class="panel">';
+    html+='<div class="stats"><div class="stat"><div class="sl">Tracker Findings</div><div class="sv">'+trackerFindings.length+'</div></div><div class="stat"><div class="sl">High Priority</div><div class="sv red">'+trackerFindings.filter(function(f){return f.severity==="HIGH";}).length+'</div></div></div>';
+    html+='<p style="font-size:14px;color:var(--ink3);margin-bottom:16px">Issues found by cross-referencing your billing tracker against QB. Click any row for the recommended action.</p>';
+    trackerFindings.sort(function(a,b){var sev={HIGH:0,MEDIUM:1,INFO:2};return(sev[a.severity]||3)-(sev[b.severity]||3);});
+    trackerFindings.forEach(function(f){
+      var cls=f.severity==="HIGH"?"red":"amber";
+      html+='<div class="item" style="border-left-color:var(--'+cls+')" onclick="this.classList.toggle(\'open\')"><div><div class="cust">'+f.customer+'</div><div class="det">'+f.detail+'</div><div class="fix">\u2192 '+f.action+'</div></div><div class="amt">'+(f.amount?rptFmt(f.amount):"\u2014")+'</div></div>';
+    });
+    html+='</div>';
+  }
+
+  html+='<div class="foot">Generated by <span>SubConPro</span> AR Command \u2014 subconpro.com</div></div>';
+  html+='<script>function showPanel(id){document.querySelectorAll(".panel").forEach(function(p){p.classList.remove("active");});document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});document.getElementById(id).classList.add("active");event.target.classList.add("active");}<\/script>';
+  html+='</body></html>';
+  var w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+}
+
 // === EVENTS ===
 document.getElementById("file-input").addEventListener("change",function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
 document.getElementById("new-report-input").addEventListener("change",function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
@@ -823,8 +1277,13 @@ document.getElementById("close-detail").addEventListener("click",closeDetail);
 document.getElementById("save-email-btn").addEventListener("click",function(){if(selectedCustomer){custEmails[selectedCustomer.name]=document.getElementById("cust-email").value.trim();saveEmails();renderDetailContent();}});
 document.getElementById("cust-email").addEventListener("keydown",function(e){if(e.key==="Enter"&&selectedCustomer){custEmails[selectedCustomer.name]=document.getElementById("cust-email").value.trim();saveEmails();renderDetailContent();}});
 document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){switchTab(b.dataset.tab);});});
+// Reports dropdown
+document.getElementById("rpt-toggle").addEventListener("click",function(e){e.stopPropagation();document.getElementById("rpt-drop").classList.toggle("show");});
+document.addEventListener("click",function(e){if(!e.target.closest(".rpt-wrap"))document.getElementById("rpt-drop").classList.remove("show");});
+document.getElementById("rpt-health").addEventListener("click",function(){document.getElementById("rpt-drop").classList.remove("show");generateHealthCheck();});
+document.getElementById("rpt-action").addEventListener("click",function(){document.getElementById("rpt-drop").classList.remove("show");generateActionPlan();});
+document.getElementById("rpt-tracker-input").addEventListener("change",function(e){if(e.target.files.length)parseTrackers(e.target.files);});
 loadStorage();
-
 </script>
 </body>
 </html>
