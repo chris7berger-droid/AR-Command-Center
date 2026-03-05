@@ -342,6 +342,26 @@ h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}
 .rpt-foot{background:var(--dark);padding:16px;border-radius:8px;margin:28px 0 8px;text-align:center;font-size:11px;color:rgba(255,255,255,0.3)}.rpt-foot span{color:var(--pop)}
 
 .hidden{display:none !important}
+
+/* Follow-Up Badge & Panel */
+.fup-wrap{position:relative;display:inline-flex;align-items:center}
+.fup-btn{font-family:var(--fontd);font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.6);cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);transition:all 0.15s}
+.fup-btn:hover{background:rgba(255,255,255,0.08);color:#fff}
+#fup-badge{display:none;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;background:var(--pop);color:#fff;font-family:var(--fontd);font-size:11px;font-weight:800;padding:0 6px}
+#fup-panel{position:absolute;top:100%;right:0;width:420px;max-height:70vh;overflow-y:auto;background:var(--card);border:2px solid var(--border2);border-radius:10px;box-shadow:0 8px 32px rgba(28,24,20,0.18);z-index:200;display:none;margin-top:8px}
+#fup-panel.fup-open{display:block}
+.fup-empty{padding:24px;text-align:center;color:var(--ink4);font-size:13px}
+.fup-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s}
+.fup-item:last-child{border-bottom:none}
+.fup-item:hover{background:var(--card-hover)}
+.fup-urg{font-family:var(--fontd);font-size:9px;font-weight:700;letter-spacing:0.06em;margin-bottom:4px}
+.fup-urgent .fup-urg{color:var(--red)}
+.fup-followup .fup-urg{color:var(--amber)}
+.fup-checkin .fup-urg{color:var(--blue)}
+.fup-cust{font-weight:700;color:var(--ink);font-size:13px}
+.fup-inv{font-family:monospace;font-size:11px;color:var(--ink3);margin-top:2px}
+.fup-reason{font-size:12px;color:var(--ink3);margin-top:4px}
+.fup-action{font-size:11px;color:var(--pop-deep);font-weight:700;margin-top:4px}
 </style>
 </head>
 <body>
