@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SCP AR Command</title>
+<title>AR Command</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -362,12 +362,18 @@ h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}
 .fup-inv{font-family:monospace;font-size:11px;color:var(--ink3);margin-top:2px}
 .fup-reason{font-size:12px;color:var(--ink3);margin-top:4px}
 .fup-action{font-size:11px;color:var(--pop-deep);font-weight:700;margin-top:4px}
+
+/* Accountant Review */
+.inv-card.is-acct{border-left:4px solid #1565c0}
+.acct-badge{font-family:var(--fontd);font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--blue-dim);color:var(--blue);white-space:nowrap;letter-spacing:0.04em}
+.acct-export-btn{font-family:var(--fontd);font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:5px 12px;border-radius:5px;border:none;background:#1565c0;color:#fff;cursor:pointer;margin-top:6px;display:inline-block}
+.acct-export-btn:hover{background:#0d47a1}
 </style>
 </head>
 <body>
 <div id="upload-screen" class="upload-screen">
   <div class="upload-box">
-    <div class="upload-title"><span>SCP</span> AR Command</div>
+    <div class="upload-title">AR Command</div>
     <div class="upload-sub">Accounts Receivable Command Center</div>
     <label class="upload-area">
       <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none">
@@ -381,7 +387,7 @@ h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}
 </div>
 <div id="dashboard" class="hidden">
   <div class="topbar">
-    <div class="topbar-left"><span class="topbar-brand"><span>SCP</span> AR Command</span><span class="topbar-date" id="report-date"></span></div>
+    <div class="topbar-left"><span class="topbar-brand">AR Command</span><span class="topbar-date" id="report-date"></span></div>
     <div class="topbar-right">
       <div class="fup-wrap"><div class="fup-btn" onclick="toggleFollowUpPanel()">Follow-Ups <span id="fup-badge">0</span></div><div id="fup-panel"></div></div>
       <span class="topbar-total">Total: <b id="grand-total"></b></span>
@@ -444,7 +450,7 @@ h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}
 </div>
 <script>
 // AR Command v7
-var customerList=[], allInvoices=[], notes={}, retFlags={}, collFlags={}, gobackFlags={}, custEmails={}, expectedDates={};
+var customerList=[], allInvoices=[], notes={}, retFlags={}, collFlags={}, gobackFlags={}, acctFlags={}, custEmails={}, expectedDates={};
 var currentFilter="all", searchTerm="", sortBy="total", sortDir="desc";
 var selectedCustomer=null, expandedInv=null, detailBucketFilter=null;
 var activeTab="aging";
@@ -497,6 +503,8 @@ function periodLabel(mode,offset){
 // === RETENTION ===
 function autoDetectRetention(inv){var num=(inv.num||"").toUpperCase();var job=(inv.job||"").toUpperCase();var full=(inv.fullName||"").toUpperCase();return num.indexOf("RET")>-1||job.indexOf("RETENTION")>-1||job.indexOf("RENTENTION")>-1||full.indexOf("RETENTION")>-1||full.indexOf("RENTENTION")>-1;}
 function isRetention(inv,cn){var k=invKey(cn,inv.num,inv.date);if(retFlags[k]!==undefined)return retFlags[k];return autoDetectRetention(inv);}
+function isAccountantReview(inv,cn){var k=invKey(cn,inv.num,inv.date);return!!acctFlags[k];}
+function getCustAcctTotal(c){var t=0;c.invoices.forEach(function(inv){if(isAccountantReview(inv,c.name))t+=inv.openBalance;});return t;}
 function isCollections(inv,cn){var k=invKey(cn,inv.num,inv.date);return!!collFlags[k];}
 function isGoback(inv,cn){var k=invKey(cn,inv.num,inv.date);return!!gobackFlags[k];}
 function getCustBuckets(c,exRet){if(!exRet)return{current:c.current,days30:c.days30,days60:c.days60,days90:c.days90,over90:c.over90,total:c.total};var r={current:0,days30:0,days60:0,days90:0,over90:0,total:0};c.invoices.forEach(function(inv){if(!isRetention(inv,c.name)&&!isCollections(inv,c.name)&&!isGoback(inv,c.name)){r[inv.bucket]+=inv.openBalance;r.total+=inv.openBalance;}});return r;}
@@ -571,21 +579,24 @@ function loadStorage(){
   try{var s=localStorage.getItem("ar7-goback");if(s)gobackFlags=JSON.parse(s);}catch(e){}
   try{var s=localStorage.getItem("ar7-emails");if(s)custEmails=JSON.parse(s);}catch(e){}
   try{var s=localStorage.getItem("ar7-expdates");if(s)expectedDates=JSON.parse(s);}catch(e){}
+  try{var s=localStorage.getItem("ar7-acct");if(s)acctFlags=JSON.parse(s);}catch(e){}
 }
 function saveNotes(){try{localStorage.setItem("ar7-notes",JSON.stringify(notes));}catch(e){}}
 function saveRetFlags(){try{localStorage.setItem("ar7-ret",JSON.stringify(retFlags));}catch(e){}}
 function saveCollFlags(){try{localStorage.setItem("ar7-coll",JSON.stringify(collFlags));}catch(e){}}
 function saveGobackFlags(){try{localStorage.setItem("ar7-goback",JSON.stringify(gobackFlags));}catch(e){}}
 function saveEmails(){try{localStorage.setItem("ar7-emails",JSON.stringify(custEmails));}catch(e){}}
+function saveAcctFlags(){try{localStorage.setItem("ar7-acct",JSON.stringify(acctFlags));}catch(e){}}
 function saveExpDates(){try{localStorage.setItem("ar7-expdates",JSON.stringify(expectedDates));}catch(e){}}
 
 // === AGING TAB ===
-function getTotals(){var t={current:0,days30:0,days60:0,days90:0,over90:0,total:0,retention:0,collections:0,goback:0,cCur:0,c30:0,c60:0,c90:0,cO90:0,cRet:0,cColl:0,cGo:0};customerList.forEach(function(c){var ret=getCustRetTotal(c);t.retention+=ret;if(ret)t.cRet++;var coll=getCustCollTotal(c);t.collections+=coll;if(coll)t.cColl++;var go=getCustGobackTotal(c);t.goback+=go;if(go)t.cGo++;var nr=getCustBuckets(c,true);if(nr.current>0)t.cCur++;if(nr.days30)t.c30++;if(nr.days60)t.c60++;if(nr.days90)t.c90++;if(nr.over90)t.cO90++;t.current+=nr.current;t.days30+=nr.days30;t.days60+=nr.days60;t.days90+=nr.days90;t.over90+=nr.over90;t.total+=c.total;});return t;}
+function getTotals(){var t={current:0,days30:0,days60:0,days90:0,over90:0,total:0,retention:0,collections:0,goback:0,cCur:0,c30:0,c60:0,c90:0,cO90:0,cRet:0,cColl:0,cGo:0};customerList.forEach(function(c){var ret=getCustRetTotal(c);t.retention+=ret;if(ret)t.cRet++;var coll=getCustCollTotal(c);t.collections+=coll;if(coll)t.cColl++;var go=getCustGobackTotal(c);t.goback+=go;if(go)t.cGo++;var acct=getCustAcctTotal(c);t.acct=(t.acct||0)+acct;if(acct)t.cAcct=(t.cAcct||0)+1;var nr=getCustBuckets(c,true);if(nr.current>0)t.cCur++;if(nr.days30)t.c30++;if(nr.days60)t.c60++;if(nr.days90)t.c90++;if(nr.over90)t.cO90++;t.current+=nr.current;t.days30+=nr.days30;t.days60+=nr.days60;t.days90+=nr.days90;t.over90+=nr.over90;t.total+=c.total;});return t;}
 function getFiltered(){
   var list=customerList.slice();
   if(currentFilter==="retention")list=list.filter(function(c){return getCustRetTotal(c)>0;});
   else if(currentFilter==="collections")list=list.filter(function(c){return getCustCollTotal(c)>0;});
   else if(currentFilter==="goback")list=list.filter(function(c){return getCustGobackTotal(c)>0;});
+  else if(currentFilter==="acctreview")list=list.filter(function(c){return getCustAcctTotal(c)>0;});
   else if(currentFilter==="current")list=list.filter(function(c){return getCustBuckets(c,true).current>0;});
   else if(currentFilter==="days30")list=list.filter(function(c){return getCustBuckets(c,true).days30!==0;});
   else if(currentFilter==="days60")list=list.filter(function(c){return getCustBuckets(c,true).days60!==0;});
@@ -598,9 +609,18 @@ function getFiltered(){
 }
 function renderScorecards(){
   var t=getTotals();
-  var cards=[{id:"all",label:"All Outstanding",amount:t.total,count:customerList.length,bg:"#1e293b"},{id:"current",label:"Current",amount:t.current,count:t.cCur,bg:COL.cur.bg},{id:"days30",label:"1\u201330 Days",amount:t.days30,count:t.c30,bg:COL.d30.bg},{id:"days60",label:"31\u201360 Days",amount:t.days60,count:t.c60,bg:COL.d60.bg},{id:"days90",label:"61\u201390 Days",amount:t.days90,count:t.c90,bg:COL.d90.bg},{id:"over90",label:"91+ Days",amount:t.over90,count:t.cO90,bg:COL.o90.bg},{id:"retention",label:"Retention",amount:t.retention,count:t.cRet,bg:COL.ret.bg},{id:"collections",label:"In Collections",amount:t.collections,count:t.cColl,bg:COL.coll.bg},{id:"goback",label:"Go Back Issues",amount:t.goback,count:t.cGo,bg:COL.goback.bg}];
+  var cards=[{id:"all",label:"All Outstanding",amount:t.total,count:customerList.length,bg:"#1e293b"},{id:"current",label:"Current",amount:t.current,count:t.cCur,bg:COL.cur.bg},{id:"days30",label:"1\u201330 Days",amount:t.days30,count:t.c30,bg:COL.d30.bg},{id:"days60",label:"31\u201360 Days",amount:t.days60,count:t.c60,bg:COL.d60.bg},{id:"days90",label:"61\u201390 Days",amount:t.days90,count:t.c90,bg:COL.d90.bg},{id:"over90",label:"91+ Days",amount:t.over90,count:t.cO90,bg:COL.o90.bg},{id:"retention",label:"Retention",amount:t.retention,count:t.cRet,bg:COL.ret.bg},{id:"collections",label:"In Collections",amount:t.collections,count:t.cColl,bg:COL.coll.bg},{id:"goback",label:"Go Back Issues",amount:t.goback,count:t.cGo,bg:COL.goback.bg},{id:"acctreview",label:"Acct Review",amount:t.acct||0,count:t.cAcct||0,bg:"#1565c0"}];
   document.getElementById("scorecards").innerHTML=cards.map(function(c){var a=currentFilter===c.id;var st=a?"background:"+c.bg+";border-color:"+c.bg+";transform:translateY(-2px);box-shadow:0 6px 20px "+c.bg+"33":"";return'<div class="scorecard '+(a?"active":"")+'" data-filter="'+c.id+'" style="'+st+'"><div class="sc-label">'+c.label+'</div><div class="sc-amount" style="color:'+(a?"#fff":c.bg)+'">'+fmtShort(c.amount)+'</div><div class="sc-count">'+c.count+' account'+(c.count!==1?"s":"")+'</div></div>';}).join("");
   document.querySelectorAll(".scorecard").forEach(function(el){el.onclick=function(){currentFilter=el.dataset.filter;renderAging();};});
+  // Add export button to Acct Review scorecard
+  var acctCard=document.querySelector('.scorecard[data-filter="acctreview"]');
+  if(acctCard&&(t.cAcct||0)>0){
+    var expBtn=document.createElement("button");
+    expBtn.className="acct-export-btn";
+    expBtn.textContent="Export PDF";
+    expBtn.onclick=function(e){e.stopPropagation();generateAcctReviewPDF();};
+    acctCard.appendChild(expBtn);
+  }
 }
 function renderTable(){
   var f=getFiltered();var body=document.getElementById("table-body");
@@ -697,16 +717,17 @@ function renderDetailContent(){
     sec.items.forEach(function(inv){
       var idx=inv._sortIdx;
       var isExp=expandedInv===idx;var nk=invKey(c.name,inv.num,inv.date);var invNotes=getNotes(nk);var hasN=invNotes.length>0;
-      var isRet=isRetention(inv,c.name);var isColl=isCollections(inv,c.name);var isGo=isGoback(inv,c.name);var typeClass=inv.type==="Payment"?"payment":inv.type==="Credit Memo"?"credit":inv.type==="Journal Entry"?"journal":"";
+      var isRet=isRetention(inv,c.name);var isColl=isCollections(inv,c.name);var isGo=isGoback(inv,c.name);var isAcct2=isAccountantReview(inv,c.name);var typeClass=inv.type==="Payment"?"payment":inv.type==="Credit Memo"?"credit":inv.type==="Journal Entry"?"journal":"";
       var od=daysOverdue(inv.dueDate);var dueLabel="";if(od>0)dueLabel='<span class="inv-overdue">'+od+'d overdue</span>';else if(od>=-30&&od<=0)dueLabel='<span class="inv-due-soon">Due in '+Math.abs(od)+'d</span>';
       var obHtml=outreachBadgeHtml(c.name,inv);
       var expKey=invKey(c.name,inv.num,inv.date);var expDate=expectedDates[expKey]||"";
       var dimmed=detailBucketFilter&&!matchesBucketFilter(inv);
-      html+='<div class="inv-card '+(isExp?"expanded":"")+" "+(isColl?"is-collections":isGo?"is-goback":isRet?"is-retention":"")+'" data-ii="'+idx+'" style="'+(dimmed?"opacity:0.25;pointer-events:none;":"")+'">';
+      html+='<div class="inv-card '+(isExp?"expanded":"")+" "+(isColl?"is-collections":isGo?"is-goback":isAcct2?"is-acct":isRet?"is-retention":"")+'" data-ii="'+idx+'" style="'+(dimmed?"opacity:0.25;pointer-events:none;":"")+'">';
     html+='<div class="inv-header" data-ii="'+idx+'"><div class="inv-top"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
     html+='<span class="inv-num">#'+escH(inv.num||"\u2014")+'</span><span class="inv-type '+typeClass+'">'+escH(inv.type)+'</span>'+ageBadge(inv.bucket);
     if(isColl)html+='<span class="coll-badge">In Collections</span>';
     else if(isGo)html+='<span class="goback-badge">Go Back</span>';
+    else if(isAcct2)html+='<span class="acct-badge">Acct Review</span>';
     else if(isRet)html+='<span class="ret-badge">Retention</span>';if(obHtml)html+=obHtml;if(hasN)html+='<div class="note-dot"></div>';
     html+='</div><div style="display:flex;align-items:center;gap:8px"><span class="inv-bal">'+fmt(inv.openBalance)+'</span><div class="inv-expand">\u203A</div></div></div>';
     if(inv.job)html+='<div class="inv-job">'+escH(inv.job)+'</div>';
@@ -750,6 +771,7 @@ function wireDetailEvents(el,sorted,c){
   el.querySelectorAll("input[data-retii]").forEach(function(cb){cb.addEventListener("click",function(e){e.stopPropagation();var inv=sorted[parseInt(cb.dataset.retii)];retFlags[invKey(c.name,inv.num,inv.date)]=cb.checked;saveRetFlags();renderScorecards();renderTable();renderDetailContent();});});
   el.querySelectorAll("input[data-collii]").forEach(function(cb){cb.addEventListener("click",function(e){e.stopPropagation();var inv=sorted[parseInt(cb.dataset.collii)];collFlags[invKey(c.name,inv.num,inv.date)]=cb.checked;saveCollFlags();renderScorecards();renderTable();renderDetailContent();});});
   el.querySelectorAll("input[data-goii]").forEach(function(cb){cb.addEventListener("click",function(e){e.stopPropagation();var inv=sorted[parseInt(cb.dataset.goii)];gobackFlags[invKey(c.name,inv.num,inv.date)]=cb.checked;saveGobackFlags();renderScorecards();renderTable();renderDetailContent();});});
+  el.querySelectorAll("input[data-acctii]").forEach(function(cb){cb.addEventListener("click",function(e){e.stopPropagation();var inv=sorted[parseInt(cb.dataset.acctii)];acctFlags[invKey(c.name,inv.num,inv.date)]=cb.checked;saveAcctFlags();renderScorecards();renderTable();renderDetailContent();});});
   // Expected date
   el.querySelectorAll("input[data-expii]").forEach(function(di){
     var btn=el.querySelector('button.cff-date-save[data-expii="'+di.dataset.expii+'"]');
@@ -1039,7 +1061,7 @@ function renderHealthCheck(){
   topCusts.forEach(function(c,i){h+='<tr><td style="color:var(--ink5)">'+(i+1)+'</td><td class="rc-name">'+escH(c.name)+'</td><td class="rc-amt">'+rptFmt(c.total)+'</td><td style="text-align:center">'+c.count+'</td><td style="color:var(--ink5);font-size:12px">'+(c.oldest||"\u2014")+'</td><td><div class="rc-bar" style="width:'+(c.total/maxAmt*100).toFixed(1)+'%"></div></td></tr>';});
   h+='</tbody></table>';
   h+='<div class="rpt-glossary"><h4>AR Glossary</h4><dl><div class="rpt-gterm"><dt>Current</dt><dd>Invoices not yet past due. Healthy money.</dd></div><div class="rpt-gterm"><dt>1-30 Days Past Due</dt><dd>Normal for construction. Send a friendly reminder.</dd></div><div class="rpt-gterm"><dt>31-60 Days</dt><dd>Getting stale. Active collection needed.</dd></div><div class="rpt-gterm"><dt>61-90 Days</dt><dd>Problem territory. Escalate with sales contact.</dd></div><div class="rpt-gterm"><dt>91+ Days</dt><dd>Critical. Consider mechanics liens or write-off.</dd></div><div class="rpt-gterm"><dt>Retention</dt><dd>Money held back (5-10%) until project completion.</dd></div><div class="rpt-gterm"><dt>Credit/Overpayment</dt><dd>Negative balance. Check if payment was misapplied.</dd></div><div class="rpt-gterm"><dt>Concentration Risk</dt><dd>Too much AR with one customer.</dd></div></dl></div>';
-  h+='<div class="rpt-foot">Generated by <span>SubConPro</span> AR Command \u2014 subconpro.com</div>';
+  h+='<div class="rpt-foot">Generated by <span>AR Command</span></div>';
   document.getElementById("health-content").innerHTML=h;
   document.querySelectorAll("[data-hf]").forEach(function(btn){btn.addEventListener("click",function(){healthFilter=btn.dataset.hf;renderHealthCheck();});});
   var ti=document.getElementById("tracker-input-health");if(ti)ti.addEventListener("change",function(e){if(e.target.files.length)parseTrackers(e.target.files);});
@@ -1078,7 +1100,7 @@ function renderActionPlan(){
   h+='</div>';
   if(trackerFindings.length){h+='<div id="ap-tracker" class="rpt-spanel"><div class="rpt-summary" style="grid-template-columns:repeat(2,1fr)"><div class="rpt-scard"><div class="rsc-l">Tracker Findings</div><div class="rsc-v">'+trackerFindings.length+'</div></div><div class="rpt-scard"><div class="rsc-l">High Priority</div><div class="rsc-v red">'+trackerFindings.filter(function(f){return f.severity==="HIGH";}).length+'</div></div></div><p class="rpt-intro">Cross-reference findings. Click for action.</p>';
     trackerFindings.sort(function(a,b){var sev={HIGH:0,MEDIUM:1};return(sev[a.severity]||2)-(sev[b.severity]||2);});trackerFindings.forEach(function(f){var cls=f.severity==="HIGH"?"red":"amber";h+='<div class="rpt-item" style="border-left-color:var(--'+cls+')" "><div><div class="ri-cust" data-rcust="'+escH(f.customer)+'">'+escH(f.customer)+'</div><div class="ri-det">'+escH(f.detail)+'</div><div class="ri-fix">\u2192 '+escH(f.action)+'</div></div><div class="ri-amt">'+(f.amount?rptFmt(f.amount):"\u2014")+'</div></div>';});h+='</div>';}
-  h+='<div class="rpt-foot">Generated by <span>SubConPro</span> AR Command \u2014 subconpro.com</div>';
+  h+='<div class="rpt-foot">Generated by <span>AR Command</span></div>';
   document.getElementById("action-content").innerHTML=h;var ti2=document.getElementById("tracker-input-action");if(ti2)ti2.addEventListener("change",function(e){if(e.target.files.length)parseTrackers(e.target.files);});
   // Wire chase cash blocks: click header to toggle, click invoice to open detail
   document.querySelectorAll(".rpt-cblock").forEach(function(block){
@@ -1203,6 +1225,54 @@ function toggleFollowUpPanel(){
       panel.classList.remove("fup-open");
     });
   });
+}
+
+
+function generateAcctReviewPDF(){
+  var items=[];
+  customerList.forEach(function(c){c.invoices.forEach(function(inv){
+    if(!isAccountantReview(inv,c.name))return;
+    var k=invKey(c.name,inv.num,inv.date);
+    var invNotes=getNotes(k);
+    var noteText=invNotes.length?invNotes.map(function(n){return n.text;}).join("; "):"";
+    var d=parseDate(inv.dueDate||inv.date);
+    var age=d?Math.floor((new Date()-d)/86400000):0;
+    items.push({customer:c.name,num:inv.num,amount:inv.openBalance,date:inv.date,dueDate:inv.dueDate,job:inv.job||inv.fullName||"",bucket:inv.bucket,age:age,notes:noteText});
+  });});
+  if(!items.length){alert("No invoices flagged for Accountant Review.");return;}
+  items.sort(function(a,b){return b.amount-a.amount;});
+  var total=items.reduce(function(s,it){return s+it.amount;},0);
+  var today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+  var w=window.open("","_blank");
+  var h='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Accountant Review - AR Command</title>';
+  h+='<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">';
+  h+='<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Barlow,sans-serif;background:#f5f3f0;color:#1c1814;padding:40px}';
+  h+='.container{max-width:900px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden}';
+  h+='.header{background:#1c1814;padding:32px 40px;color:#fff}.header h1{font-family:Barlow Condensed,sans-serif;font-size:28px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#5BBD3F}.header p{color:rgba(255,255,255,0.5);font-size:13px;margin-top:4px}';
+  h+='.summary{display:flex;gap:20px;padding:24px 40px;border-bottom:1px solid #e5e2dd}.scard{flex:1;text-align:center}.scard-l{font-family:Barlow Condensed,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#887c6e;margin-bottom:4px}.scard-v{font-family:Barlow Condensed,sans-serif;font-size:28px;font-weight:800;color:#1c1814}';
+  h+='table{width:100%;border-collapse:collapse}th{font-family:Barlow Condensed,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#887c6e;text-align:left;padding:12px 16px;border-bottom:2px solid #e5e2dd}';
+  h+='td{padding:12px 16px;border-bottom:1px solid #f0ede8;font-size:12px;color:#352e26;vertical-align:top}tr:hover{background:#faf8f5}';
+  h+='.amt{font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:14px;color:#1c1814;text-align:right;white-space:nowrap}';
+  h+='.age-over90{color:#c62828;font-weight:700}.age-61{color:#e65100;font-weight:700}.age-31{color:#d97706}.age-cur{color:#2e7d32}';
+  h+='.notes{font-size:11px;color:#6b6358;font-style:italic;max-width:300px}';
+  h+='.footer{padding:20px 40px;background:#f5f3f0;font-size:11px;color:#887c6e;text-align:center}';
+  h+='.print-bar{padding:16px 40px;text-align:right;background:#faf8f5;border-bottom:1px solid #e5e2dd}';
+  h+='.print-btn{font-family:Barlow Condensed,sans-serif;padding:10px 28px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.04em;text-transform:uppercase}.print-btn:hover{background:#0d47a1}';
+  h+='@media print{.print-bar{display:none}body{background:#fff;padding:0}.container{box-shadow:none;border-radius:0}}';
+  h+='</style></head><body><div class="container">';
+  h+='<div class="header"><h1>Accountant Review Report</h1><p>Generated '+today+' \u2014 AR Command</p></div>';
+  h+='<div class="print-bar"><button class="print-btn" onclick="window.print()">Print / Save PDF</button></div>';
+  h+='<div class="summary"><div class="scard"><div class="scard-l">Items for Review</div><div class="scard-v">'+items.length+'</div></div><div class="scard"><div class="scard-l">Total Amount</div><div class="scard-v">'+rptFmt(total)+'</div></div></div>';
+  h+='<table><thead><tr><th>Customer</th><th>Invoice</th><th>Job</th><th>Date</th><th>Age</th><th style="text-align:right">Amount</th><th>Notes</th></tr></thead><tbody>';
+  items.forEach(function(it){
+    var ageCls=it.age>90?"age-over90":it.age>60?"age-61":it.age>30?"age-31":"age-cur";
+    var ageLabel=it.age>0?it.age+"d":"Current";
+    h+='<tr><td style="font-weight:600">'+it.customer+'</td><td>#'+it.num+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.job+'</td><td style="white-space:nowrap">'+it.date+'</td><td class="'+ageCls+'">'+ageLabel+'</td><td class="amt">'+rptFmt(it.amount)+'</td><td class="notes">'+(it.notes||"\u2014")+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<div class="footer">AR Command \u2014 Accountant Review Report \u2014 '+today+'</div>';
+  h+='</div></body></html>';
+  w.document.write(h);w.document.close();
 }
 
 // === FILE HANDLING ===
