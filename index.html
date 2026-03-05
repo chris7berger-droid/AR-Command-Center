@@ -744,6 +744,8 @@ function renderDetailContent(){
     html+='<label class="ret-toggle"><input type="checkbox" data-retii="'+idx+'" '+(isRet?"checked":"")+'><div class="ret-checkbox">\u2713</div><span class="ret-toggle-label">Mark as Retention</span></label>';
     html+='<label class="ret-toggle"><input type="checkbox" data-collii="'+idx+'" '+(isColl?"checked":"")+'><div class="ret-checkbox" style="'+(isColl?"background:#475569;border-color:#475569;color:#fff":"")+'">\u2713</div><span class="ret-toggle-label">In Collections</span></label>';
     html+='<label class="ret-toggle"><input type="checkbox" data-goii="'+idx+'" '+(isGo?"checked":"")+'><div class="ret-checkbox" style="'+(isGo?"background:#b45309;border-color:#b45309;color:#fff":"")+'">\u2713</div><span class="ret-toggle-label">Go Back Issue</span></label>';
+    var isAcctR=isAccountantReview(inv,c.name);
+    html+='<label class="ret-toggle"><input type="checkbox" data-acctii="'+idx+'" '+(isAcctR?"checked":"")+'><div class="ret-checkbox" style="'+(isAcctR?"background:#1565c0;border-color:#1565c0;color:#fff":"")+'">\u2713</div><span class="ret-toggle-label">Accountant Review</span></label>';
     // Expected date
     html+='<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><span style="font-size:10px;font-weight:700;color:#6b7280">EXPECTED PAYMENT:</span><input type="date" class="cff-date-input" value="'+(expDate?toISODate(parseDate(expDate)):"")+'" data-expii="'+idx+'"><button class="cff-date-save" data-expii="'+idx+'">Save</button></div>';
     // Email
