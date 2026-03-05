@@ -545,6 +545,25 @@ function parseDetailReport(rows){
 // === STORAGE ===
 function getNotes(k){return(notes[k]||[]).sort(function(a,b){return b.ts-a.ts;});}
 function hasAnyNotes(c){if((notes[custNoteKey(c.name)]||[]).length)return true;for(var i=0;i<c.invoices.length;i++){if((notes[invKey(c.name,c.invoices[i].num,c.invoices[i].date)]||[]).length)return true;}return false;}
+function saveReportData(){
+  try{
+    var rd={customers:customerList,invoices:allInvoices,date:document.getElementById("report-date").textContent};
+    localStorage.setItem("ar7-report",JSON.stringify(rd));
+  }catch(e){console.error("Could not save report:",e);}
+}
+function loadReportData(){
+  try{
+    var s=localStorage.getItem("ar7-report");
+    if(!s)return false;
+    var rd=JSON.parse(s);
+    if(!rd.customers||!rd.customers.length)return false;
+    customerList=rd.customers;
+    allInvoices=rd.invoices||[];
+    if(rd.date)document.getElementById("report-date").textContent=rd.date;
+    document.getElementById("grand-total").textContent=fmt(customerList.reduce(function(s,c){return s+c.total;},0));
+    return true;
+  }catch(e){return false;}
+}
 function loadStorage(){
   try{var s=localStorage.getItem("ar7-notes");if(s)notes=JSON.parse(s);}catch(e){}
   try{var s=localStorage.getItem("ar7-ret");if(s)retFlags=JSON.parse(s);}catch(e){}
@@ -1201,6 +1220,7 @@ function handleFile(file){
       document.getElementById("grand-total").textContent=fmt(customerList.reduce(function(s,c){return s+c.total;},0));
       document.getElementById("upload-screen").classList.add("hidden");document.getElementById("dashboard").classList.remove("hidden");
       currentFilter="all";searchTerm="";sortBy="total";sortDir="desc";document.getElementById("search-input").value="";
+      saveReportData();
       switchTab("aging");
     }catch(err){document.getElementById("upload-error").textContent="Error: "+err.message;document.getElementById("upload-error").classList.remove("hidden");document.getElementById("upload-label").textContent="Click to upload your QB A/R Aging Detail Report";}
   };reader.readAsArrayBuffer(file);
@@ -1218,6 +1238,13 @@ document.getElementById("save-email-btn").addEventListener("click",function(){if
 document.getElementById("cust-email").addEventListener("keydown",function(e){if(e.key==="Enter"&&selectedCustomer){custEmails[selectedCustomer.name]=document.getElementById("cust-email").value.trim();saveEmails();renderDetailContent();}});
 document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){switchTab(b.dataset.tab);});});
 loadStorage();
+// Auto-restore last report if available
+if(loadReportData()){
+  document.getElementById("upload-screen").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+  currentFilter="all";searchTerm="";sortBy="total";sortDir="desc";
+  switchTab("aging");
+}
 </script>
 </body>
 </html>
