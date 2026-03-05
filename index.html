@@ -363,6 +363,7 @@ h1,h2,h3,h4{font-family:var(--fontd);color:var(--ink);font-weight:700}
   <div class="topbar">
     <div class="topbar-left"><span class="topbar-brand"><span>SCP</span> AR Command</span><span class="topbar-date" id="report-date"></span></div>
     <div class="topbar-right">
+      <div class="fup-wrap"><div class="fup-btn" onclick="toggleFollowUpPanel()">Follow-Ups <span id="fup-badge">0</span></div><div id="fup-panel"></div></div>
       <span class="topbar-total">Total: <b id="grand-total"></b></span>
       <label class="new-report-btn"><input type="file" accept=".xlsx,.xls,.csv" id="new-report-input" style="display:none">New Report</label>
     </div>
@@ -592,10 +593,11 @@ function renderTable(){
   document.getElementById("footer-total").textContent=fmt(filteredTotal);
 }
 function renderSortArrows(){document.querySelectorAll(".t-header div[data-sort]").forEach(function(el){var col=el.dataset.sort;var base={name:"Customer",current:"Current",days30:"1-30",days60:"31-60",days90:"61-90",over90:"91+",total:"Total"}[col];el.textContent=base+(sortBy===col?(sortDir==="desc"?" \u25BC":" \u25B2"):"");});}
-function renderAging(){renderScorecards();renderTable();renderSortArrows();}
+function renderAging(){renderScorecards();renderTable();renderSortArrows();renderFollowUpBadge();}
 
 // === DETAIL PANEL ===
 function openDetail(cust){
+  var fp=document.getElementById('fup-panel');if(fp)fp.classList.remove('fup-open');
   selectedCustomer=cust;expandedInv=null;detailBucketFilter=null;
   document.getElementById("overlay").classList.remove("hidden");document.getElementById("detail-panel").classList.remove("hidden");
   document.getElementById("d-name").textContent=cust.name;document.getElementById("d-total").textContent=fmt(cust.total);
@@ -732,7 +734,7 @@ function wireDetailEvents(el,sorted,c){
   el.querySelectorAll("textarea[data-nk]").forEach(function(ta){var nk=ta.dataset.nk;var btn=el.querySelector('button.n-save[data-nk="'+CSS.escape(nk)+'"]');if(ta)ta.addEventListener("input",function(){if(btn)btn.className=ta.value.trim()?"n-save active":"n-save";});if(ta)ta.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))doSaveNote(nk,ta.value.trim());});});
   el.querySelectorAll("button.n-save[data-nk]").forEach(function(btn){btn.addEventListener("click",function(){var nk=btn.dataset.nk;var ta=el.querySelector('textarea[data-nk="'+CSS.escape(nk)+'"]');if(ta)doSaveNote(nk,ta.value.trim());});});
 }
-function doSaveNote(key,text){if(!text)return;if(!notes[key])notes[key]=[];notes[key].push({text:text,ts:Date.now()});saveNotes();renderDetailContent();renderTable();}
+function doSaveNote(key,text){if(!text)return;if(!notes[key])notes[key]=[];notes[key].push({text:text,ts:Date.now()});saveNotes();renderDetailContent();renderTable();renderFollowUpBadge();}
 function closeDetail(){selectedCustomer=null;expandedInv=null;document.getElementById("overlay").classList.add("hidden");document.getElementById("detail-panel").classList.add("hidden");}
 function openDetailForInvoice(inv){
   var cust=null;
@@ -1067,6 +1069,103 @@ function renderActionPlan(){
 }
 function showActionPanel(id){document.querySelectorAll('.rpt-spanel').forEach(function(p){p.classList.remove('active');});document.querySelectorAll('.rpt-stab').forEach(function(t){t.classList.remove('active');});var el=document.getElementById('ap-'+id);if(el)el.classList.add('active');if(event&&event.target)event.target.classList.add('active');}
 
+// === FOLLOW-UP ENGINE ===
+function buildFollowUps(){
+  var fups=[];var today=new Date();var now=Date.now();var DAY=86400000;
+  customerList.forEach(function(c){c.invoices.forEach(function(inv){
+    if(inv.openBalance<=0)return;
+    if(isCollections(inv,c.name))return;
+    var k=invKey(c.name,inv.num,inv.date);
+    var invNotes=notes[k]||[];
+    var lastNote=invNotes.length?invNotes.reduce(function(a,b){return a.ts>b.ts?a:b;}):null;
+    var lastOutreach=null;
+    for(var i=invNotes.length-1;i>=0;i--){if(invNotes[i].outreach!==undefined){lastOutreach=invNotes[i];break;}}
+    var expDate=expectedDates[k]?parseDate(expectedDates[k]):null;
+    var invDate=parseDate(inv.dueDate||inv.date);
+    var age=invDate?Math.floor((today-invDate)/DAY):0;
+    var isRet=isRetention(inv,c.name);
+    var isGb=isGoback(inv,c.name);
+    // 1. Missed expected payment
+    if(expDate&&expDate<today){
+      var daysLate=Math.floor((today-expDate)/DAY);
+      fups.push({customer:c.name,inv:inv,urgency:daysLate>7?1:2,reason:"Expected payment missed"+(daysLate>1?" ("+daysLate+" days ago)":""),action:"Call to follow up on missed payment",type:"missed_payment"});
+    }
+    // 2. Email sent, no response in 7+ days
+    if(lastOutreach&&(now-lastOutreach.ts)>7*DAY){
+      var daysSince=Math.floor((now-lastOutreach.ts)/DAY);
+      var lastTier=lastOutreach.outreach;
+      var nextLabel=lastTier===0?"1st Polite":lastTier===1?"2nd Clear":lastTier===2?"3rd Serious":"Final demand";
+      var noNewAction=!lastNote||lastNote.ts<=lastOutreach.ts;
+      if(noNewAction){fups.push({customer:c.name,inv:inv,urgency:lastTier>=2?1:2,reason:"No response to email ("+daysSince+" days)",action:"Escalate to "+nextLabel,type:"email_escalation"});}
+    }
+    // 3. Stale note - last activity 10+ days, no outreach after it
+    if(lastNote&&(now-lastNote.ts)>10*DAY){
+      var newerOutreach=lastOutreach&&lastOutreach.ts>lastNote.ts;
+      if(!newerOutreach){
+        var daysSinceNote=Math.floor((now-lastNote.ts)/DAY);
+        fups.push({customer:c.name,inv:inv,urgency:3,reason:"Last note "+daysSinceNote+" days ago",action:"Check status, update notes",type:"stale_note"});
+      }
+    }
+    // 4. Overdue 30+ days, zero action taken
+    if(age>30&&!lastNote&&!lastOutreach&&!expDate&&!isRet&&!isGb){
+      fups.push({customer:c.name,inv:inv,urgency:age>60?1:2,reason:age+" days overdue, no action taken",action:age>60?"Urgent: start collection now":"Send first collection email",type:"no_action"});
+    }
+    // 5. Retention release check at 90+ days
+    if(isRet&&age>90){
+      fups.push({customer:c.name,inv:inv,urgency:3,reason:"Retention held "+age+" days",action:"Check if project complete, request release",type:"retention_check"});
+    }
+  });});
+  // Sort: urgency 1 first, then amount desc
+  fups.sort(function(a,b){if(a.urgency!==b.urgency)return a.urgency-b.urgency;return b.inv.openBalance-a.inv.openBalance;});
+  // Dedupe per invoice - keep highest urgency
+  var seen={};var deduped=[];
+  fups.forEach(function(f){var k=invKey(f.customer,f.inv.num,f.inv.date);if(!seen[k]){seen[k]=true;deduped.push(f);}});
+  return deduped;
+}
+
+function renderFollowUpBadge(){
+  var fups=buildFollowUps();
+  var badge=document.getElementById("fup-badge");
+  if(!badge)return;
+  if(fups.length>0){badge.textContent=fups.length;badge.style.display="inline-flex";}
+  else{badge.style.display="none";}
+}
+
+function toggleFollowUpPanel(){
+  var panel=document.getElementById("fup-panel");
+  if(!panel)return;
+  var isOpen=panel.classList.contains("fup-open");
+  if(isOpen){panel.classList.remove("fup-open");return;}
+  var fups=buildFollowUps();
+  var h="";
+  if(!fups.length){
+    h='<div class="fup-empty">No follow-ups needed. You\u2019re caught up.</div>';
+  }else{
+    var urgLabels={1:"\ud83d\udd34 URGENT",2:"\ud83d\udfe0 FOLLOW UP",3:"\ud83d\udd35 CHECK IN"};
+    var urgClasses={1:"fup-urgent",2:"fup-followup",3:"fup-checkin"};
+    fups.forEach(function(f,i){
+      h+='<div class="fup-item '+urgClasses[f.urgency]+'" data-fupidx="'+i+'">';
+      h+='<div class="fup-urg">'+urgLabels[f.urgency]+'</div>';
+      h+='<div class="fup-main">';
+      h+='<div class="fup-cust">'+escH(f.customer)+'</div>';
+      h+='<div class="fup-inv">#'+escH(f.inv.num)+' \u00b7 '+rptFmt(f.inv.openBalance)+'</div>';
+      h+='<div class="fup-reason">'+escH(f.reason)+'</div>';
+      h+='<div class="fup-action">\u2192 '+escH(f.action)+'</div>';
+      h+='</div></div>';
+    });
+  }
+  panel.innerHTML=h;
+  panel.classList.add("fup-open");
+  // Wire clicks to open detail for that invoice
+  panel.querySelectorAll(".fup-item").forEach(function(el){
+    el.addEventListener("click",function(){
+      var idx=parseInt(el.dataset.fupidx);
+      if(fups[idx])openDetailForInvoice(fups[idx].inv);
+      panel.classList.remove("fup-open");
+    });
+  });
+}
+
 // === FILE HANDLING ===
 function handleFile(file){
   document.getElementById("upload-label").textContent="Processing...";
@@ -1092,7 +1191,8 @@ document.getElementById("file-input").addEventListener("change",function(e){if(e
 document.getElementById("new-report-input").addEventListener("change",function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
 document.getElementById("search-input").addEventListener("input",function(e){searchTerm=e.target.value;renderTable();});
 document.querySelectorAll(".t-header div[data-sort]").forEach(function(el){el.addEventListener("click",function(){var col=el.dataset.sort;if(sortBy===col)sortDir=sortDir==="desc"?"asc":"desc";else{sortBy=col;sortDir="desc";}renderTable();renderSortArrows();});});
-document.getElementById("overlay").addEventListener("click",closeDetail);
+document.getElementById("overlay").addEventListener("click",function(){closeDetail();var fp=document.getElementById('fup-panel');if(fp)fp.classList.remove('fup-open');});
+  document.addEventListener('click',function(e){var fp=document.getElementById('fup-panel');var fw=document.querySelector('.fup-wrap');if(fp&&fw&&!fw.contains(e.target))fp.classList.remove('fup-open');});
 document.getElementById("close-detail").addEventListener("click",closeDetail);
 document.getElementById("save-email-btn").addEventListener("click",function(){if(selectedCustomer){custEmails[selectedCustomer.name]=document.getElementById("cust-email").value.trim();saveEmails();renderDetailContent();}});
 document.getElementById("cust-email").addEventListener("keydown",function(e){if(e.key==="Enter"&&selectedCustomer){custEmails[selectedCustomer.name]=document.getElementById("cust-email").value.trim();saveEmails();renderDetailContent();}});
