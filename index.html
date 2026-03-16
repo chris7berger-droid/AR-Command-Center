@@ -847,7 +847,7 @@ function renderInvoicesTab(){
   if(!filtered.length){document.getElementById("inv-list").innerHTML='<div class="no-results">No invoices in this period</div>';return;}
   var html="";
   filtered.forEach(function(inv,idx){
-    html+='<div class="inv-list-card" data-invIdx="'+idx+'" style="cursor:pointer"><span class="inv-list-num">#'+escH(inv.num)+'</span><span class="inv-list-customer">'+escH(inv.customer)+'</span><span class="inv-list-job">'+escH(inv.job)+'</span><span class="inv-list-date">'+escH(inv.date)+'</span><span class="inv-list-amount">'+fmt(inv.amount)+'</span></div>';
+    html+='<div class="inv-list-card" data-invIdx="'+idx+'" style="cursor:pointer'+(inv.openBalance>0?';border-left:3px solid var(--red);background:rgba(198,40,40,0.04)':'')+'">'<span class="inv-list-num">#'+escH(inv.num)+'</span><span class="inv-list-customer">'+escH(inv.customer)+'</span><span class="inv-list-job">'+escH(inv.job)+'</span><span class="inv-list-date">'+escH(inv.date)+'</span><span class="inv-list-amount">'+fmt(inv.amount)+'</span></div>';
   });
   document.getElementById("inv-list").innerHTML=html;
   document.querySelectorAll(".inv-list-card").forEach(function(el){el.addEventListener("click",function(){var i=parseInt(el.dataset.invidx);openDetailForInvoice(filtered[i]);});});
