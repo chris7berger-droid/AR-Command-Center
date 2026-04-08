@@ -1,0 +1,82 @@
+AR Command — Handoff v1 (2026-04-08)
+======================================
+
+## What Is It
+AR Command is a QuickBooks A/R Aging Detail Report analyzer for the Command Suite.
+Users upload a QB Excel export and get interactive aging analysis, collection tools,
+health checks, and action plans — all client-side.
+
+## Stack
+- React (Vite) — SPA, no SSR
+- Same patterns as Sales Command: src/pages, src/components, src/lib
+- Design tokens from src/lib/tokens.js (parchment/linen palette, Barlow fonts)
+- Data: localStorage via src/lib/arStore.js (Phase 2 = Supabase swap)
+- Supabase client wired (src/lib/supabase.js) but not yet used
+- SheetJS (xlsx) for Excel parsing
+
+## Production
+- Vercel project: ar-command-center (auto-deploys on push to main)
+- Domains: arcmybiz.com, arcommand.com (both with www)
+- GitHub: chris7berger-droid/AR-Command-Center (main branch)
+- Local: ~/AR-Command-Center
+
+## File Structure
+
+### Pages (src/pages/)
+- Upload.jsx — QB file upload screen (drag & drop)
+- Dashboard.jsx — Main layout, tab switching, export wiring
+- InvoicesTab.jsx — Invoice list with period navigation
+- CFFTab.jsx — Cash Flow Forecast (scheduled/unscheduled/retention)
+- HealthCheckTab.jsx — Anomalies, aging breakdown, top customers
+- ActionPlanTab.jsx — Clean Up QB + Chase Cash sub-tabs
+
+### Components (src/components/)
+- Topbar.jsx — Nav bar with tabs, print/export button, new report upload
+- Scorecards.jsx — Filter cards (All, Current, 1-30, 31-60, 61-90, 91+, etc.)
+- AgingTable.jsx — Sortable customer table with aging columns
+- DetailPanel.jsx — Customer detail drawer (invoices, notes, flags, email, dates)
+- PeriodNav.jsx — Week/Month/Quarter/Year period selector
+
+### Libraries (src/lib/)
+- tokens.js — Design tokens (C, COL, F, GLOBAL_CSS)
+- utils.js — Formatters, date helpers, QB report parser, email templates
+- arStore.js — localStorage abstraction (all read/write in one file)
+- ARContext.jsx — React context with all AR state and business logic
+- supabase.js — Supabase client (shared Command Suite DB)
+- exportUtils.js — Print/PDF/CSV export for every view
+
+## Key Architecture
+- ARContext.jsx is the brain — holds all state, flag checks, bucket calcs, filtering
+- arStore.js is the persistence layer — swap this one file for Supabase migration
+- Every view exports via exportUtils.js (opens clean HTML window with Print/CSV)
+- Legacy single-file version preserved in legacy/index.html
+
+## Data Structures
+Customer: { name, invoices[], current, days30, days60, days90, over90, total }
+Invoice: { date, type, num, job, fullName, location, dueDate, amount, openBalance, bucket, customer }
+Flags: retFlags, collFlags, gobackFlags, acctFlags (all keyed by invKey)
+Notes: { [invKey]: [{ text, ts, outreach? }] }
+Expected dates: { [invKey]: "M/D/YYYY" }
+
+## localStorage Keys
+ar7-report, ar7-notes, ar7-ret, ar7-coll, ar7-goback, ar7-acct, ar7-emails, ar7-expdates
+
+## What's NOT Ported Yet (from legacy)
+- Follow-Ups panel (buildFollowUps logic exists in legacy)
+- Billing Tracker upload + cross-reference (parseTrackers, buildTrackerFindings)
+- Email composer in detail panel (generateEmail logic is in utils.js, UI not wired)
+- Outreach badges on invoice cards
+- Accountant Review PDF export (generateAcctReviewPDF)
+
+## Style Rules
+- Same as Sales Command: no white backgrounds, use C.linen/linenCard/linenDeep
+- Detail panel background: C.linen, invoice cards: C.linenCard
+- Aging colors defined in COL object (tokens.js)
+- Fonts: Barlow Condensed (headings), Barlow (body)
+
+## Next Priorities
+1. Wire email composer in DetailPanel (logic exists in utils.js generateEmail)
+2. Port Follow-Ups panel
+3. Port Billing Tracker upload for Health Check / Action Plan cross-reference
+4. Supabase migration (if multi-user/cross-device needed)
+5. Auth + multi-tenant (if selling AR Command as standalone product)
