@@ -143,31 +143,32 @@ export default function TriageTab() {
         <div style={S.right}>
           {selected ? (
             <>
-              <div style={S.detailHeader}>
-                <div style={S.detailName}>{selected.name}</div>
-                <div style={S.detailTotal}>{fmt(selected.total)}</div>
-              </div>
+              {/* Scrollable content area */}
+              <div style={S.rightScroll}>
+                <div style={S.detailHeader}>
+                  <div style={S.detailName}>{selected.name}</div>
+                  <div style={S.detailTotal}>{fmt(selected.total)}</div>
+                </div>
 
-              {/* Aging buckets */}
-              <div style={S.buckets}>
-                {[
-                  { l: "Current", v: selected.current, c: COL.cur },
-                  { l: "1-30", v: selected.days30, c: COL.d30 },
-                  { l: "31-60", v: selected.days60, c: COL.d60 },
-                  { l: "61-90", v: selected.days90, c: COL.d90 },
-                  { l: "91+", v: selected.over90, c: COL.o90 },
-                ].map((b) => (
-                  <div key={b.l} style={{ ...S.bucket, background: b.v ? b.c.lt : "#f3f4f6", border: `1px solid ${b.v ? b.c.bg + "33" : "#e5e7eb"}` }}>
-                    <div style={{ ...S.bLabel, color: b.v ? b.c.tx : "#9ca3af" }}>{b.l}</div>
-                    <div style={{ ...S.bVal, color: b.v ? b.c.bg : "#d1d5db" }}>{fmt(b.v)}</div>
-                  </div>
-                ))}
-              </div>
+                {/* Aging buckets */}
+                <div style={S.buckets}>
+                  {[
+                    { l: "Current", v: selected.current, c: COL.cur },
+                    { l: "1-30", v: selected.days30, c: COL.d30 },
+                    { l: "31-60", v: selected.days60, c: COL.d60 },
+                    { l: "61-90", v: selected.days90, c: COL.d90 },
+                    { l: "91+", v: selected.over90, c: COL.o90 },
+                  ].map((b) => (
+                    <div key={b.l} style={{ ...S.bucket, background: b.v ? b.c.lt : "#f3f4f6", border: `1px solid ${b.v ? b.c.bg + "33" : "#e5e7eb"}` }}>
+                      <div style={{ ...S.bLabel, color: b.v ? b.c.tx : "#9ca3af" }}>{b.l}</div>
+                      <div style={{ ...S.bVal, color: b.v ? b.c.bg : "#d1d5db" }}>{fmt(b.v)}</div>
+                    </div>
+                  ))}
+                </div>
 
-              {/* Invoice list (compact) */}
-              <div style={S.invSection}>
-                <div style={S.invTitle}>Invoices ({selected.invoices.length})</div>
-                <div style={S.invList}>
+                {/* Invoice list (compact) */}
+                <div style={S.invSection}>
+                  <div style={S.invTitle}>Invoices ({selected.invoices.length})</div>
                   {selected.invoices
                     .slice()
                     .sort((a, b) => b.openBalance - a.openBalance)
@@ -191,7 +192,7 @@ export default function TriageTab() {
                 </div>
               </div>
 
-              {/* TRIAGE BUTTONS */}
+              {/* TRIAGE BUTTONS — pinned at bottom */}
               <div style={S.triageBar}>
                 <div style={S.triageLabel}>TRIAGE THIS CUSTOMER</div>
                 <div style={S.triageBtns}>
@@ -199,7 +200,7 @@ export default function TriageTab() {
                     const active = ar.triageFlags[selected.name] === s.id;
                     return (
                       <button key={s.id} onClick={() => setTriage(selected.name, s.id)}
-                        style={{ ...S.triageBtn, background: active ? s.col.bg : s.col.lt, color: active ? "#fff" : s.col.bg, border: `2px solid ${s.col.bg}`, ...(active ? { transform: "scale(1.05)", boxShadow: `0 4px 16px ${s.col.bg}44` } : {}) }}>
+                        style={{ ...S.triageBtn, background: active ? s.col.bg : C.dark, color: active ? "#fff" : s.col.lt, border: `2px solid ${s.col.bg}`, ...(active ? { transform: "scale(1.05)", boxShadow: `0 4px 20px ${s.col.bg}66` } : {}) }}>
                         <span style={S.triageIcon}>{s.icon}</span>
                         <span style={S.triageName}>{s.label}</span>
                       </button>
@@ -244,15 +245,16 @@ const S = {
   statCount: { fontSize: 10, color: C.textFaint, marginTop: 3 },
 
   // Main layout
-  main: { display: "flex", gap: 16, minHeight: "calc(100vh - 280px)" },
+  main: { display: "flex", gap: 16, height: "calc(100vh - 280px)" },
   left: { width: 340, flexShrink: 0, display: "flex", flexDirection: "column", background: C.linenCard, border: `1px solid ${C.borderStrong}`, borderRadius: 10, overflow: "hidden" },
   right: { flex: 1, display: "flex", flexDirection: "column", background: C.linenCard, border: `1px solid ${C.borderStrong}`, borderRadius: 10, overflow: "hidden" },
+  rightScroll: { flex: 1, overflowY: "auto", minHeight: 0 },
 
   // Customer list
   listHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: C.dark },
   listTitle: { fontFamily: F.display, fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em", textTransform: "uppercase" },
   listCount: { fontFamily: F.display, fontSize: 11, fontWeight: 700, color: C.pop, background: C.darkRaised, padding: "2px 8px", borderRadius: 4 },
-  listBody: { flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 380px)" },
+  listBody: { flex: 1, overflowY: "auto", minHeight: 0 },
   listRow: { padding: "10px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", borderLeft: "3px solid transparent", transition: "background 0.1s" },
   listRowTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   listName: { fontWeight: 600, fontSize: 12, color: C.textBody, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -273,9 +275,8 @@ const S = {
   bVal: { fontFamily: F.display, fontSize: 16, fontWeight: 800, marginTop: 2 },
 
   // Invoice list
-  invSection: { flex: 1, padding: "0 24px 12px", overflow: "hidden", display: "flex", flexDirection: "column" },
+  invSection: { padding: "0 24px 12px" },
   invTitle: { fontFamily: F.display, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textMuted, padding: "8px 0", borderBottom: `1px solid ${C.border}` },
-  invList: { flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 620px)" },
   invRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.border}`, gap: 8 },
   invLeft: { display: "flex", alignItems: "center", gap: 6, flex: 1, overflow: "hidden" },
   invRight: { display: "flex", alignItems: "center", gap: 10, flexShrink: 0 },
@@ -286,14 +287,14 @@ const S = {
   invDate: { fontSize: 10, color: C.textFaint },
   invAmt: { fontFamily: F.display, fontSize: 12, fontWeight: 800, color: C.textHead, minWidth: 70, textAlign: "right" },
 
-  // Triage buttons
-  triageBar: { padding: "16px 24px 20px", borderTop: `2px solid ${C.border}`, background: C.linenDeep },
-  triageLabel: { fontFamily: F.display, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: C.textMuted, marginBottom: 10 },
-  triageBtns: { display: "flex", gap: 8 },
-  triageBtn: { flex: 1, padding: "14px 8px", borderRadius: 10, cursor: "pointer", textAlign: "center", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  triageIcon: { fontSize: 20 },
-  triageName: { fontFamily: F.display, fontSize: 12, fontWeight: 800, letterSpacing: "0.04em" },
-  triageDesc: { fontSize: 11, color: C.textLight, marginTop: 8, fontStyle: "italic", textAlign: "center" },
+  // Triage buttons — pinned at bottom
+  triageBar: { padding: "16px 24px 20px", borderTop: `2px solid ${C.darkBorder}`, background: C.dark, flexShrink: 0 },
+  triageLabel: { fontFamily: F.display, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", color: C.teal, marginBottom: 12, textAlign: "center" },
+  triageBtns: { display: "flex", gap: 10 },
+  triageBtn: { flex: 1, padding: "18px 8px", borderRadius: 12, cursor: "pointer", textAlign: "center", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
+  triageIcon: { fontSize: 24 },
+  triageName: { fontFamily: F.display, fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" },
+  triageDesc: { fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, fontStyle: "italic", textAlign: "center" },
 
   noSelect: { padding: 60, textAlign: "center", color: C.textFaint, fontSize: 14, margin: "auto" },
 };
