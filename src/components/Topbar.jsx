@@ -29,11 +29,12 @@ export default function Topbar({ activeTab, onTabChange, onExport }) {
   };
 
   const tabs = [
-    { id: "aging", label: "Aging" },
-    { id: "invoices", label: "Invoices" },
-    { id: "cff", label: "Cash Flow Forecast" },
+    { id: "triage", label: "Triage" },
+    { id: "aging", label: "Dashboard" },
+    { id: "action", label: "Chase" },
     { id: "health", label: "Health Check", rpt: true },
-    { id: "action", label: "Action Plan", rpt: true },
+    { id: "cff", label: "Cash Flow", rpt: true },
+    { id: "invoices", label: "Invoices", rpt: true },
   ];
 
   return (
@@ -61,6 +62,7 @@ export default function Topbar({ activeTab, onTabChange, onExport }) {
         {tabs.map((t, i) => (
           <span key={t.id}>
             {i === 3 && <div style={S.sep} />}
+
             <button
               style={{ ...S.tab, ...(activeTab === t.id ? S.tabActive : {}), ...(t.rpt ? S.tabRpt : {}), ...(t.rpt && activeTab === t.id ? S.tabRptActive : {}) }}
               onClick={() => onTabChange(t.id)}

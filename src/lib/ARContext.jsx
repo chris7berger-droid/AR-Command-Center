@@ -15,6 +15,7 @@ export function ARProvider({ children }) {
   const [acctFlags, setAcctFlags] = useState({});
   const [custEmails, setCustEmails] = useState({});
   const [expectedDates, setExpectedDates] = useState({});
+  const [triageFlags, setTriageFlags] = useState({});
   const [loaded, setLoaded] = useState(false);
 
   const loadAll = useCallback(() => {
@@ -31,6 +32,7 @@ export function ARProvider({ children }) {
     setAcctFlags(store.loadAcctFlags());
     setCustEmails(store.loadEmails());
     setExpectedDates(store.loadExpDates());
+    setTriageFlags(store.loadTriage());
     setLoaded(true);
     return !!d;
   }, []);
@@ -50,6 +52,7 @@ export function ARProvider({ children }) {
   const updateAcctFlags = useCallback((next) => { setAcctFlags(next); store.saveAcctFlags(next); }, []);
   const updateEmails = useCallback((next) => { setCustEmails(next); store.saveEmails(next); }, []);
   const updateExpDates = useCallback((next) => { setExpectedDates(next); store.saveExpDates(next); }, []);
+  const updateTriage = useCallback((next) => { setTriageFlags(next); store.saveTriage(next); }, []);
 
   // Flag check helpers
   const autoDetectRetention = (inv) => {
@@ -124,9 +127,9 @@ export function ARProvider({ children }) {
   return (
     <ARContext.Provider value={{
       customers, allInvoices, reportDate, loaded,
-      notes, retFlags, collFlags, gobackFlags, acctFlags, custEmails, expectedDates,
+      notes, retFlags, collFlags, gobackFlags, acctFlags, custEmails, expectedDates, triageFlags,
       loadAll, importReport,
-      updateNotes, updateRetFlags, updateCollFlags, updateGobackFlags, updateAcctFlags, updateEmails, updateExpDates,
+      updateNotes, updateRetFlags, updateCollFlags, updateGobackFlags, updateAcctFlags, updateEmails, updateExpDates, updateTriage,
       isRetention, isCollections, isGoback, isAccountantReview,
       getCustBuckets, getCustRetTotal, getCustCollTotal, getCustGobackTotal, getCustAcctTotal,
       getNotes, getLastOutreach, getTotals, getFiltered,
