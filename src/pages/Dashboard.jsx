@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Topbar from "../components/Topbar";
+import { getPageNumber, PageBadge, DirectoryOverlay } from "../components/Directory";
 import Scorecards from "../components/Scorecards";
 import AgingTable from "../components/AgingTable";
 import DetailPanel from "../components/DetailPanel";
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState("total");
   const [sortDir, setSortDir] = useState("desc");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showDirectory, setShowDirectory] = useState(false);
 
   const filtered = ar.getFiltered(currentFilter, searchTerm, sortBy, sortDir);
 
@@ -64,6 +66,15 @@ export default function Dashboard() {
 
       {selectedCustomer && (
         <DetailPanel customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
+      )}
+
+      <PageBadge pageNumber={getPageNumber(activeTab)} onClick={() => setShowDirectory(true)} />
+      {showDirectory && (
+        <DirectoryOverlay
+          onClose={() => setShowDirectory(false)}
+          currentPageId={getPageNumber(activeTab)}
+          onNavigate={(tabId) => setActiveTab(tabId)}
+        />
       )}
     </div>
   );
