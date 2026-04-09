@@ -44,8 +44,7 @@ export const COL = {
   // Triage statuses
   tGood:     { bg: "#059669", lt: "#d1fae5", tx: "#065f46" },
   tUnsure:   { bg: "#d97706", lt: "#fef3c7", tx: "#92400e" },
-  tNotright: { bg: "#dc2626", lt: "#fee2e2", tx: "#991b1b" },
-  tProblem:  { bg: "#7c2d12", lt: "#fecaca", tx: "#7f1d1d" },
+  tProblem:  { bg: "#dc2626", lt: "#fee2e2", tx: "#991b1b" },
 };
 
 export const F = {

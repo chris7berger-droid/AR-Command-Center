@@ -1,0 +1,99 @@
+AR Command — Handoff v2 (2026-04-09)
+======================================
+
+## What Changed This Session
+
+### New: Triage Screen (invoice-level)
+- Dedicated Triage tab — first tab in the nav, where you start every session
+- Left panel: customer list sorted by total owed, shows triage progress per customer
+- Center panel: selected customer's invoices as expandable cards (same UI as Dashboard detail)
+- 3 triage statuses: Good, Unsure, Problem — per invoice, not per customer
+- Quick triage buttons on every invoice row (no need to expand)
+- Expand any invoice for full detail: triage buttons, flag toggles, expected payment date, notes
+- Clickable scorecards at top: Untriaged, Good, Unsure, Problem, Credits/JEs, All
+- Clicking Good/Unsure/Problem shows a flat list of ALL matching invoices across all customers
+  with customer name on each card — lets you power through a category one by one
+- Credits/JEs (Credit Memos + Journal Entries) bucketed separately, not in triage flow
+- Untriaged and All views show per-customer layout with aging buckets
+- Triage data stored in localStorage key: ar7-triage (keyed by invKey)
+
+### New: Directory (The Directory)
+- Floating "Dir. X" badge in bottom-right corner (same pattern as Sales Command)
+- Click to open full workflow guide overlay
+- 7 steps: Upload → Triage → Dashboard → Chase → Health Check → Cash Flow → Invoices
+- Expandable features with step-by-step instructions per screen
+- Highlights current page, click any page to navigate there
+
+### Tab Reorder
+- New order matches workflow: Triage → Dashboard → Chase → Health Check → Cash Flow → Invoices
+- "Action Plan" renamed to "Chase"
+- Triage is the default tab on load
+
+### Favicon
+- Replaced Vite default with Command Suite crosshair + dollar sign
+- Same dark bg (#1c1814) + teal (#30cfac) as Sales Command
+
+## Stack (unchanged)
+- React (Vite) — SPA, no SSR
+- Same patterns as Sales Command: src/pages, src/components, src/lib
+- Design tokens from src/lib/tokens.js (parchment/linen palette, Barlow fonts)
+- Data: localStorage via src/lib/arStore.js
+- SheetJS (xlsx) for Excel parsing
+
+## Production
+- Vercel project: ar-command-center (auto-deploys on push to main)
+- Domains: arcmybiz.com, arcommand.com (both with www)
+- GitHub: chris7berger-droid/AR-Command-Center (main branch)
+- Local: ~/AR-Command-Center
+
+## File Structure
+
+### Pages (src/pages/)
+- Upload.jsx — QB file upload screen (drag & drop)
+- Dashboard.jsx — Main layout, tab switching, export wiring, Directory integration
+- TriageTab.jsx — Invoice-level triage with scorecards, flat list view, full detail expand
+- InvoicesTab.jsx — Invoice list with period navigation
+- CFFTab.jsx — Cash Flow Forecast (scheduled/unscheduled/retention)
+- HealthCheckTab.jsx — Anomalies, aging breakdown, top customers
+- ActionPlanTab.jsx — Clean Up QB + Chase Cash sub-tabs
+
+### Components (src/components/)
+- Topbar.jsx — Nav bar with tabs (reordered), print/export, new report upload
+- Scorecards.jsx — Dashboard filter cards (aging buckets + flags)
+- AgingTable.jsx — Sortable customer table with aging columns
+- DetailPanel.jsx — Customer detail drawer (invoices, notes, flags, email, dates)
+- PeriodNav.jsx — Week/Month/Quarter/Year period selector
+- Directory.jsx — The Directory overlay, PageBadge, workflow guide (new)
+
+### Libraries (src/lib/)
+- tokens.js — Design tokens (C, COL with triage colors tGood/tUnsure/tProblem, F, GLOBAL_CSS)
+- utils.js — Formatters, date helpers, QB report parser, email templates
+- arStore.js — localStorage abstraction (all read/write, now includes triage)
+- ARContext.jsx — React context with all AR state, business logic, and triage state
+- supabase.js — Supabase client (shared Command Suite DB, not yet used)
+- exportUtils.js — Print/PDF/CSV export for every view
+
+## localStorage Keys
+ar7-report, ar7-notes, ar7-ret, ar7-coll, ar7-goback, ar7-acct, ar7-emails, ar7-expdates, ar7-triage
+
+## Triage Data Model
+- Stored in ar7-triage as { [invKey]: "good" | "unsure" | "problem" }
+- invKey = same key format used for notes/flags (customer+num+date)
+- Credit Memos and Journal Entries excluded from triage — shown in their own "Credits/JEs" bucket
+- Scorecards track counts and dollar amounts per status
+- Flat list view for Good/Unsure/Problem shows all matching invoices across all customers
+
+## What's NOT Ported Yet (from legacy)
+- Follow-Ups panel (buildFollowUps logic exists in legacy)
+- Billing Tracker upload + cross-reference (parseTrackers, buildTrackerFindings)
+- Email composer in detail panel (generateEmail logic is in utils.js, UI not wired)
+- Outreach badges on invoice cards
+- Accountant Review PDF export (generateAcctReviewPDF)
+
+## Next Priorities
+1. Wire triage status filtering into Dashboard/Chase/CFF screens (blinders mode)
+2. Wire email composer in DetailPanel (logic exists in utils.js generateEmail)
+3. Port Follow-Ups panel
+4. Port Billing Tracker upload for Health Check / Action Plan cross-reference
+5. Supabase migration (if multi-user/cross-device needed)
+6. Auth + multi-tenant (if selling AR Command as standalone product)

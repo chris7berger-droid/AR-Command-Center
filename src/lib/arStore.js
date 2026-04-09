@@ -51,6 +51,6 @@ export function saveEmails(v)     { save(KEYS.emails, v); }
 export function loadExpDates()    { return load(KEYS.expDates, {}); }
 export function saveExpDates(v)   { save(KEYS.expDates, v); }
 
-// Triage statuses: keyed by customer name → "good" | "unsure" | "notright" | "problem"
+// Triage statuses: keyed by invKey → "good" | "unsure" | "problem"
 export function loadTriage()      { return load(KEYS.triage, {}); }
 export function saveTriage(v)     { save(KEYS.triage, v); }
