@@ -1,0 +1,109 @@
+AR Command — Handoff v3 (2026-04-14)
+======================================
+
+## What Changed This Session
+
+### New: Decision Engine (Commit 5935cf8)
+- When an invoice is triaged as Problem or Unsure, a ReasonPicker appears
+  with 7 options: Won't Pay, Overbilled, Retention Dispute, Quality Dispute,
+  Misapplied Payment, Partial/Short Pay, Don't Know
+- Selecting a reason auto-recommends a QB action (write-off, credit memo,
+  retention hold, negotiate, fix payment, chase difference, send to accountant)
+- PlaybookPanel shows the recommendation with:
+  - Cash-basis tax impact notes
+  - Click-by-click QB steps personalized with invoice #, amount, customer name
+  - Override option to pick a different action
+  - Confirm button ("Got it — I'll do this")
+- Decisions persist in localStorage (ar7-decisions) keyed by invKey
+- "Action Set" badge appears on confirmed invoices in the card header
+
+Files added:
+- src/lib/decisionEngine.js — Core engine, reuses daysOverdue/fmt from utils.js,
+  frozen lookup tables, pre-built static reason→action map
+- src/components/QBPlaybook.jsx — ReasonPicker + PlaybookPanel (React.memo wrapped)
+
+Files modified:
+- src/lib/arStore.js — ar7-decisions key + load/save
+- src/lib/ARContext.jsx — decisions state + updateDecisions + provider
+- src/pages/TriageTab.jsx — Decision engine integration in expanded InvCard
+
+### New: Cash Basis Banner (Commit 5dc0de2)
+- Dismissible/expandable educational banner on Triage + Chase tabs
+- Explains zero tax impact of write-offs, credit memos, payment reassignment
+- 2x2 grid of quick explanations, expandable for detail
+- File: src/components/CashBasisBanner.jsx
+
+### New: Accountant Review Export (Commit 5dc0de2)
+- Export button on Triage tab now reads "Accountant Review"
+- Generates printable HTML + CSV report bundling:
+  - Invoices flagged "Accountant Review"
+  - Invoices with "Don't Know" decision reason
+  - Invoices triaged "Unsure" with no decision yet
+- Each item shows: aging badge, flags, customer, job, dates, overdue days,
+  "MY ASSESSMENT" block with issue + suggested action, and recent notes
+- Includes accountant-facing intro explaining cash basis context
+- File: src/lib/exportUtils.js (exportAcctReviewView function)
+
+### New: Blinders Mode (Commit 5dc0de2)
+- Chase tab (ActionPlanTab): toggle checkbox, on by default
+  - Hides invoices triaged "Good" or with confirmed decision actions
+  - Shows only invoices that still need attention
+- Cash Flow tab (CFFTab): automatically excludes confirmed-decision invoices
+  from the forecast (you already know what to do with them)
+
+### Dashboard Wiring (Commit 5dc0de2)
+- CashBasisBanner renders on triage + action tabs
+- Triage export wired to exportAcctReviewView
+- Topbar shows context-aware export button label
+
+## Stack (unchanged)
+- React (Vite) — SPA, no SSR
+- Design tokens from src/lib/tokens.js (parchment/linen palette, Barlow fonts)
+- Data: localStorage via src/lib/arStore.js
+- SheetJS (xlsx) for Excel parsing
+
+## Production
+- Vercel project: ar-command-center (auto-deploys on push to main)
+- Domains: arcmybiz.com, arcommand.com (both with www)
+- GitHub: chris7berger-droid/AR-Command-Center (main branch)
+- Local: ~/AR-Command-Center
+
+## localStorage Keys
+ar7-report, ar7-notes, ar7-ret, ar7-coll, ar7-goback, ar7-acct, ar7-emails,
+ar7-expdates, ar7-triage, ar7-decisions (NEW)
+
+## File Structure Updates
+
+### New Files
+- src/lib/decisionEngine.js — Problem reasons, actions, reason→action mapping, QB playbooks
+- src/components/QBPlaybook.jsx — ReasonPicker + PlaybookPanel components
+- src/components/CashBasisBanner.jsx — Cash basis educational banner
+
+### Modified Files
+- src/lib/arStore.js — +decisions key
+- src/lib/ARContext.jsx — +decisions state/updater
+- src/lib/exportUtils.js — +exportAcctReviewView
+- src/pages/TriageTab.jsx — +decision engine in expanded panel
+- src/pages/ActionPlanTab.jsx — +blinders mode on Chase
+- src/pages/CFFTab.jsx — +confirmed decision exclusion
+- src/pages/Dashboard.jsx — +CashBasisBanner, +acct review export wiring
+- src/components/Topbar.jsx — +context-aware export label
+
+## Commits
+5935cf8 feat: Decision Engine — reason picker, QB playbooks, and action tracking on triage
+5dc0de2 feat: Cash basis banner, accountant review export, blinders mode on Chase + CFF
+
+## What's NOT Ported Yet (from legacy)
+- Follow-Ups panel (buildFollowUps logic exists in legacy)
+- Billing Tracker upload + cross-reference (parseTrackers, buildTrackerFindings)
+- Email composer in detail panel (generateEmail logic is in utils.js, UI not wired)
+- Outreach badges on invoice cards
+- Accountant Review PDF export (generateAcctReviewPDF) — REPLACED by new exportAcctReviewView
+
+## Next Priorities
+1. Wire triage status filtering into Dashboard screen (blinders mode for aging table)
+2. Wire email composer in DetailPanel (logic exists in utils.js generateEmail)
+3. Port Follow-Ups panel
+4. Port Billing Tracker upload for Health Check / Action Plan cross-reference
+5. Supabase migration (if multi-user/cross-device needed)
+6. Auth + multi-tenant (if selling AR Command as standalone product)
