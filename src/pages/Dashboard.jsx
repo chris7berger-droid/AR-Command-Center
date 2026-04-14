@@ -10,7 +10,8 @@ import HealthCheckTab from "./HealthCheckTab";
 import ActionPlanTab from "./ActionPlanTab";
 import TriageTab from "./TriageTab";
 import { useAR } from "../lib/ARContext";
-import { exportAgingView, exportInvoicesView, exportHealthView, exportActionView, exportCFFView } from "../lib/exportUtils";
+import CashBasisBanner from "../components/CashBasisBanner";
+import { exportAgingView, exportInvoicesView, exportHealthView, exportActionView, exportCFFView, exportAcctReviewView } from "../lib/exportUtils";
 
 export default function Dashboard() {
   const ar = useAR();
@@ -30,7 +31,7 @@ export default function Dashboard() {
   };
 
   const handleExport = () => {
-    if (activeTab === "triage") return; // triage has no export
+    if (activeTab === "triage") exportAcctReviewView(ar);
     else if (activeTab === "aging") exportAgingView(ar, currentFilter, searchTerm, sortBy, sortDir);
     else if (activeTab === "invoices") exportInvoicesView(ar.allInvoices);
     else if (activeTab === "cff") exportCFFView(ar);
@@ -48,6 +49,7 @@ export default function Dashboard() {
     <div>
       <Topbar activeTab={activeTab} onTabChange={setActiveTab} onExport={handleExport} />
       <div style={{ maxWidth: 1260, margin: "0 auto", padding: "20px 16px", position: "relative", zIndex: 1 }}>
+        {(activeTab === "triage" || activeTab === "action") && <CashBasisBanner />}
         {activeTab === "triage" && <TriageTab />}
         {activeTab === "aging" && (
           <>

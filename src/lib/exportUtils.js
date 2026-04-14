@@ -1,6 +1,7 @@
 // Export/Print utilities — generates clean printable HTML windows
 import { C, F, COL } from "./tokens";
 import { fmt, fmtShort, daysOverdue, invKey, parseDate, toDateStr } from "./utils";
+import { REASON_MAP, ACTIONS } from "./decisionEngine";
 
 function rptFmt(n) {
   if (n === 0) return "$0";
@@ -231,4 +232,90 @@ export function exportCFFView(ar) {
     h += `</tbody></table>`;
   }
   openPrintWindow("Cash Flow Forecast", h, null);
+}
+
+// ─── Accountant Review ───
+// Bundles all invoices flagged for accountant review OR with "unknown" decision reason
+export function exportAcctReviewView(ar) {
+  const items = [];
+  ar.customers.forEach((c) => {
+    c.invoices.forEach((inv) => {
+      const k = invKey(c.name, inv.num, inv.date);
+      const isAcct = ar.isAccountantReview(inv, c.name);
+      const decision = ar.decisions?.[k];
+      const isUnknown = decision?.reason === "unknown";
+      const isUnsure = ar.triageFlags[k] === "unsure" && !decision?.reason;
+      if (!isAcct && !isUnknown && !isUnsure) return;
+      const od = daysOverdue(inv.dueDate);
+      const notes = (ar.notes[k] || []).slice().sort((a, b) => b.ts - a.ts);
+      items.push({ inv, custName: c.name, od, reason: decision?.reason, action: decision?.overrideAction || decision?.action, notes, isAcct, isUnknown, isUnsure });
+    });
+  });
+  items.sort((a, b) => Math.abs(b.inv.openBalance) - Math.abs(a.inv.openBalance));
+
+  const totalAmt = items.reduce((s, it) => s + it.inv.openBalance, 0);
+
+  let h = `<div class="summary">`;
+  h += `<div class="scard"><div class="scard-l">Items for Review</div><div class="scard-v">${items.length}</div></div>`;
+  h += `<div class="scard"><div class="scard-l">Total Amount</div><div class="scard-v">${rptFmt(totalAmt)}</div></div>`;
+  h += `<div class="scard" style="border-color:#6366f144"><div class="scard-l" style="color:#6366f1">Accounting Method</div><div class="scard-v" style="color:#6366f1;font-size:16px">Cash Basis</div></div>`;
+  h += `</div>`;
+
+  h += `<div style="padding:16px 40px;background:#f0f0ff;border-bottom:1px solid #e5e2dd;font-size:12px;line-height:1.6;color:#352e26">`;
+  h += `<strong>For the accountant:</strong> These are invoices I need guidance on. For each item, I need to know: what's the correct QuickBooks action (write off, credit memo, journal entry, or leave as-is), and are there any tax implications I should be aware of? We are on <strong>cash basis</strong>.`;
+  h += `</div>`;
+
+  items.forEach((it, idx) => {
+    const reasonLabel = it.reason ? (REASON_MAP[it.reason]?.label || it.reason) : "Not classified";
+    const actionLabel = it.action ? (ACTIONS[it.action]?.label || it.action) : "No recommendation yet";
+    const flags = [];
+    if (it.isAcct) flags.push("Flagged for Accountant Review");
+    if (it.isUnknown) flags.push("Reason: Don't Know");
+    if (it.isUnsure) flags.push("Triage: Unsure");
+
+    h += `<div style="padding:16px 40px;border-bottom:1px solid #e5e2dd;${idx % 2 ? "background:#faf8f5" : ""}">`;
+    h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">`;
+    h += `<div><span style="font-weight:700;font-size:14px">#${esc(it.inv.num || "\u2014")}</span> ${ageBadgeHtml(it.inv.bucket)}`;
+    flags.forEach((f) => { h += ` <span class="age-badge" style="background:#ede9fe;color:#6366f1">${esc(f)}</span>`; });
+    h += `</div><div class="inv-amt">${fmt(it.inv.openBalance)}</div></div>`;
+
+    h += `<div style="font-weight:600;font-size:12px;color:#352e26">${esc(it.custName)}</div>`;
+    if (it.inv.job) h += `<div style="font-size:10px;color:#6b7280;margin-top:2px">${esc(it.inv.job)}</div>`;
+    h += `<div style="font-size:10px;color:#887c6e;margin-top:4px">Date: ${esc(it.inv.date)} &bull; Due: ${esc(it.inv.dueDate)}`;
+    if (it.od > 0) h += ` &bull; <span style="color:#dc2626;font-weight:700">${it.od}d overdue</span>`;
+    if (Math.abs(it.inv.amount - it.inv.openBalance) > 0.01) h += ` &bull; Original: ${fmt(it.inv.amount)}`;
+    h += `</div>`;
+
+    h += `<div style="margin-top:8px;padding:8px 12px;background:rgba(99,102,241,0.06);border-radius:6px;border:1px solid rgba(99,102,241,0.15)">`;
+    h += `<div style="font-size:10px;font-weight:700;color:#6366f1;margin-bottom:4px;letter-spacing:0.06em">MY ASSESSMENT</div>`;
+    h += `<div style="font-size:11px;color:#352e26"><strong>Issue:</strong> ${esc(reasonLabel)}</div>`;
+    h += `<div style="font-size:11px;color:#352e26"><strong>Possible action:</strong> ${esc(actionLabel)}</div>`;
+    h += `<div style="font-size:11px;color:#352e26;margin-top:2px"><strong>Need from you:</strong> Confirm this is the right approach, or recommend an alternative.</div>`;
+    h += `</div>`;
+
+    if (it.notes.length) {
+      h += `<div style="margin-top:8px"><div style="font-size:9px;font-weight:700;color:#887c6e;letter-spacing:0.08em;margin-bottom:4px">NOTES</div>`;
+      it.notes.slice(0, 3).forEach((n) => {
+        const ts = new Date(n.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        h += `<div style="font-size:10px;color:#6b7280;margin-bottom:2px">${ts}: ${esc(n.text)}</div>`;
+      });
+      if (it.notes.length > 3) h += `<div style="font-size:10px;color:#9ca3af;font-style:italic">+${it.notes.length - 3} more notes</div>`;
+      h += `</div>`;
+    }
+    h += `</div>`;
+  });
+
+  if (!items.length) {
+    h += `<div style="padding:40px;text-align:center;color:#887c6e">No items flagged for accountant review. Flag invoices as "Accountant Review" or choose "Don't know" in the decision engine to add them here.</div>`;
+  }
+
+  let csv = "Invoice,Customer,Job,Date,Due,Days Overdue,Amount,Open Balance,Issue,Suggested Action,Notes\n";
+  items.forEach((it) => {
+    const reasonLabel = it.reason ? (REASON_MAP[it.reason]?.label || it.reason) : "";
+    const actionLabel = it.action ? (ACTIONS[it.action]?.label || it.action) : "";
+    const noteText = it.notes.map((n) => n.text).join("; ").replace(/"/g, '""');
+    csv += `"${it.inv.num}","${it.custName}","${(it.inv.job || "").replace(/"/g, '""')}","${it.inv.date}","${it.inv.dueDate}",${it.od},${it.inv.amount},${it.inv.openBalance},"${reasonLabel}","${actionLabel}","${noteText}"\n`;
+  });
+
+  openPrintWindow("Accountant Review", h, csv);
 }

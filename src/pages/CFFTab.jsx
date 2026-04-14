@@ -21,7 +21,13 @@ export default function CFFTab({ onSelectInvoice }) {
     return due >= now ? due : null;
   }
 
-  const openInvs = ar.allInvoices.filter((inv) => inv.type === "Invoice" && inv.openBalance > 0 && !ar.isCollections(inv, inv.customer) && !ar.isGoback(inv, inv.customer));
+  const openInvs = ar.allInvoices.filter((inv) => {
+    if (inv.type !== "Invoice" || inv.openBalance <= 0) return false;
+    if (ar.isCollections(inv, inv.customer) || ar.isGoback(inv, inv.customer)) return false;
+    const k = invKey(inv.customer, inv.num, inv.date);
+    if (ar.decisions?.[k]?.confirmedAt) return false;
+    return true;
+  });
 
   const unscheduled = [], scheduled = [], retentionInvs = [];
   openInvs.forEach((inv) => {

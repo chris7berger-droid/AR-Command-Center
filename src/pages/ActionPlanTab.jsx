@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { C, F, COL } from "../lib/tokens";
-import { fmt, parseDate, daysOverdue } from "../lib/utils";
+import { fmt, parseDate, daysOverdue, invKey } from "../lib/utils";
 import { useAR } from "../lib/ARContext";
 
 function rptFmt(n) {
@@ -13,7 +13,17 @@ function rptFmt(n) {
 export default function ActionPlanTab({ onSelectCustomer, onSelectInvoice }) {
   const ar = useAR();
   const [panel, setPanel] = useState("cleanup");
+  const [blinders, setBlinders] = useState(true);
   const today = new Date();
+
+  // Blinders mode: skip invoices that are triaged "good" or have a confirmed decision
+  const shouldSkipInv = (inv, custName) => {
+    if (!blinders) return false;
+    const k = invKey(custName, inv.num, inv.date);
+    if (ar.triageFlags[k] === "good") return true;
+    if (ar.decisions?.[k]?.confirmedAt) return true;
+    return false;
+  };
 
   // Build cleanup items
   const cleanupItems = [];
@@ -42,6 +52,7 @@ export default function ActionPlanTab({ onSelectCustomer, onSelectInvoice }) {
   ar.customers.forEach((c) => { c.invoices.forEach((inv) => {
     if (inv.type !== "Invoice" || inv.openBalance <= 0) return;
     if (ar.isRetention(inv, c.name) || ar.isCollections(inv, c.name) || ar.isGoback(inv, c.name)) return;
+    if (shouldSkipInv(inv, c.name)) return;
     const d = parseDate(inv.dueDate || inv.date); if (!d) return;
     const age = Math.floor((today - d) / 86400000);
     if (age > 90) chaseGroups.over90.push({ inv, cust: c.name });
@@ -87,6 +98,14 @@ export default function ActionPlanTab({ onSelectCustomer, onSelectInvoice }) {
       <div style={S.tabs}>
         <button style={{ ...S.tab, ...(panel === "cleanup" ? S.tabActive : {}) }} onClick={() => setPanel("cleanup")}>1. Clean Up QB</button>
         <button style={{ ...S.tab, ...(panel === "chase" ? S.tabActive : {}) }} onClick={() => setPanel("chase")}>2. Chase Cash</button>
+        {panel === "chase" && (
+          <label style={S.blindersToggle}>
+            <input type="checkbox" checked={blinders} onChange={() => setBlinders(!blinders)} style={{ display: "none" }} />
+            <div style={{ ...S.blindersBox, ...(blinders ? { background: C.tealDark, borderColor: C.tealDark, color: "#fff" } : {}) }}>{"\u2713"}</div>
+            <span style={S.blindersLabel}>Blinders Mode</span>
+            <span style={S.blindersHint}>{blinders ? "Hiding triaged Good + confirmed actions" : "Showing all invoices"}</span>
+          </label>
+        )}
       </div>
 
       {/* Cleanup panel */}
@@ -191,6 +210,10 @@ const S = {
   tabs: { display: "flex", gap: 4, marginBottom: 16 },
   tab: { fontFamily: F.display, padding: "10px 20px", fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${C.borderStrong}`, borderRadius: 8, background: C.linenCard, color: C.textMuted, letterSpacing: "0.04em", textTransform: "uppercase" },
   tabActive: { background: C.dark, color: C.pop, borderColor: C.dark },
+  blindersToggle: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginLeft: "auto", padding: "6px 0" },
+  blindersBox: { width: 16, height: 16, borderRadius: 3, border: "2px solid #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "transparent", transition: "all 0.15s", flexShrink: 0 },
+  blindersLabel: { fontSize: 11, fontWeight: 700, fontFamily: F.display, color: C.textHead, letterSpacing: "0.02em" },
+  blindersHint: { fontSize: 10, color: C.textFaint },
   summary: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 },
   scard: { background: C.linenCard, border: `1px solid ${C.borderStrong}`, borderRadius: 10, padding: "14px 16px" },
   scL: { fontFamily: F.display, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint },
