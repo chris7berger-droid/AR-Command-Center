@@ -11,6 +11,7 @@ const KEYS = {
   emails: "ar7-emails",
   expDates: "ar7-expdates",
   triage: "ar7-triage",
+  decisions: "ar7-decisions",
 };
 
 function load(key, fallback) {
@@ -54,3 +55,7 @@ export function saveExpDates(v)   { save(KEYS.expDates, v); }
 // Triage statuses: keyed by invKey → "good" | "unsure" | "problem"
 export function loadTriage()      { return load(KEYS.triage, {}); }
 export function saveTriage(v)     { save(KEYS.triage, v); }
+
+// Decision data: keyed by invKey → { reason, action, confirmedAt, overrideAction? }
+export function loadDecisions()   { return load(KEYS.decisions, {}); }
+export function saveDecisions(v)  { save(KEYS.decisions, v); }

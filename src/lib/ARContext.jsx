@@ -16,6 +16,7 @@ export function ARProvider({ children }) {
   const [custEmails, setCustEmails] = useState({});
   const [expectedDates, setExpectedDates] = useState({});
   const [triageFlags, setTriageFlags] = useState({});
+  const [decisions, setDecisions] = useState({});
   const [loaded, setLoaded] = useState(false);
 
   const loadAll = useCallback(() => {
@@ -33,6 +34,7 @@ export function ARProvider({ children }) {
     setCustEmails(store.loadEmails());
     setExpectedDates(store.loadExpDates());
     setTriageFlags(store.loadTriage());
+    setDecisions(store.loadDecisions());
     setLoaded(true);
     return !!d;
   }, []);
@@ -53,6 +55,7 @@ export function ARProvider({ children }) {
   const updateEmails = useCallback((next) => { setCustEmails(next); store.saveEmails(next); }, []);
   const updateExpDates = useCallback((next) => { setExpectedDates(next); store.saveExpDates(next); }, []);
   const updateTriage = useCallback((next) => { setTriageFlags(next); store.saveTriage(next); }, []);
+  const updateDecisions = useCallback((next) => { setDecisions(next); store.saveDecisions(next); }, []);
 
   // Flag check helpers
   const autoDetectRetention = (inv) => {
@@ -127,9 +130,9 @@ export function ARProvider({ children }) {
   return (
     <ARContext.Provider value={{
       customers, allInvoices, reportDate, loaded,
-      notes, retFlags, collFlags, gobackFlags, acctFlags, custEmails, expectedDates, triageFlags,
+      notes, retFlags, collFlags, gobackFlags, acctFlags, custEmails, expectedDates, triageFlags, decisions,
       loadAll, importReport,
-      updateNotes, updateRetFlags, updateCollFlags, updateGobackFlags, updateAcctFlags, updateEmails, updateExpDates, updateTriage,
+      updateNotes, updateRetFlags, updateCollFlags, updateGobackFlags, updateAcctFlags, updateEmails, updateExpDates, updateTriage, updateDecisions,
       isRetention, isCollections, isGoback, isAccountantReview,
       getCustBuckets, getCustRetTotal, getCustCollTotal, getCustGobackTotal, getCustAcctTotal,
       getNotes, getLastOutreach, getTotals, getFiltered,

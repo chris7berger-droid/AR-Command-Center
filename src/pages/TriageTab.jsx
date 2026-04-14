@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { C, F, COL } from "../lib/tokens";
 import { fmt, daysOverdue, invKey, fmtTs, parseDate, toDateStr, toISODate, fromISO } from "../lib/utils";
 import { useAR } from "../lib/ARContext";
+import { getRecommendedAction } from "../lib/decisionEngine";
+import { ReasonPicker, PlaybookPanel } from "../components/QBPlaybook";
 
 const STATUSES = [
   { id: "good",    label: "Good",    icon: "\u2705", col: COL.tGood },
@@ -37,13 +39,15 @@ function TriageBadge({ status }) {
   return <span style={{ fontSize: 9, fontWeight: 700, fontFamily: F.display, padding: "2px 7px", borderRadius: 4, background: s.col.bg, color: "#fff", letterSpacing: "0.04em" }}>{s.icon} {s.label}</span>;
 }
 
-function InvCard({ inv, custName, showCustName, ar, expandedInvKey, setExpandedInvKey, setInvTriage, toggleFlag, saveExpDate, saveNote, noteInputs, setNoteInputs }) {
+function InvCard({ inv, custName, showCustName, ar, expandedInvKey, setExpandedInvKey, setInvTriage, toggleFlag, saveExpDate, saveNote, noteInputs, setNoteInputs, setDecision }) {
   const nk = invKey(custName, inv.num, inv.date);
   const isExp = expandedInvKey === nk;
   const invNotes = ar.getNotes(nk);
   const od = daysOverdue(inv.dueDate);
   const expDate = ar.expectedDates[nk] || "";
   const triageStatus = ar.triageFlags[nk];
+  const decision = ar.decisions[nk] || null;
+  const showDecisionEngine = triageStatus === "problem" || triageStatus === "unsure";
 
   return (
     <div style={S.invCard}>
@@ -56,6 +60,7 @@ function InvCard({ inv, custName, showCustName, ar, expandedInvKey, setExpandedI
             {ar.isRetention(inv, custName) && <FlagBadge label="Retention" bg={COL.ret.lt} color={COL.ret.bg} />}
             {ar.isCollections(inv, custName) && <FlagBadge label="In Collections" bg={COL.coll.lt} color={COL.coll.bg} />}
             {ar.isGoback(inv, custName) && <FlagBadge label="Go Back" bg={COL.goback.lt} color={COL.goback.bg} />}
+            {decision?.confirmedAt && <FlagBadge label="Action Set" bg="rgba(48,207,172,0.15)" color={C.tealDark} />}
             <TriageBadge status={triageStatus} />
             {invNotes.length > 0 && <div style={S.noteDot} />}
           </div>
@@ -109,6 +114,26 @@ function InvCard({ inv, custName, showCustName, ar, expandedInvKey, setExpandedI
               );
             })}
           </div>
+
+          {/* Decision Engine — shown for Problem and Unsure invoices */}
+          {showDecisionEngine && (
+            <>
+              <ReasonPicker currentReason={decision?.reason}
+                onSelect={(reasonId) => {
+                  const action = getRecommendedAction(reasonId, inv);
+                  setDecision(nk, { reason: reasonId, action, overrideAction: null, confirmedAt: null });
+                }} />
+              {decision?.reason && (
+                <PlaybookPanel reasonId={decision.reason} inv={inv} custName={custName} decision={decision}
+                  onConfirm={(actionId) => {
+                    setDecision(nk, { ...decision, action: actionId, confirmedAt: Date.now() });
+                  }}
+                  onOverride={(actionId) => {
+                    setDecision(nk, { ...decision, overrideAction: actionId, confirmedAt: null });
+                  }} />
+              )}
+            </>
+          )}
 
           <div style={{ marginTop: 12 }}>
             {[
@@ -247,6 +272,10 @@ export default function TriageTab() {
     setNoteInputs((p) => ({ ...p, [nk]: "" }));
   };
 
+  const setDecision = (nk, decisionData) => {
+    ar.updateDecisions({ ...ar.decisions, [nk]: decisionData });
+  };
+
   const saveExpDate = (inv, custName, isoVal) => {
     const d = fromISO(isoVal);
     if (!d) return;
@@ -381,7 +410,7 @@ export default function TriageTab() {
                   <InvCard key={getIK(custName, inv) + i} inv={inv} custName={custName} showCustName
                     ar={ar} expandedInvKey={expandedInvKey} setExpandedInvKey={setExpandedInvKey}
                     setInvTriage={setInvTriage} toggleFlag={toggleFlag} saveExpDate={saveExpDate}
-                    saveNote={saveNote} noteInputs={noteInputs} setNoteInputs={setNoteInputs} />
+                    saveNote={saveNote} noteInputs={noteInputs} setNoteInputs={setNoteInputs} setDecision={setDecision} />
                 ))}
                 {!flatFilteredInvs.length && <div style={S.noSelect}>No invoices in this category</div>}
               </div>
@@ -417,7 +446,7 @@ export default function TriageTab() {
                   <InvCard key={invKey(selected.name, inv.num, inv.date) + i} inv={inv} custName={selected.name}
                     ar={ar} expandedInvKey={expandedInvKey} setExpandedInvKey={setExpandedInvKey}
                     setInvTriage={setInvTriage} toggleFlag={toggleFlag} saveExpDate={saveExpDate}
-                    saveNote={saveNote} noteInputs={noteInputs} setNoteInputs={setNoteInputs} />
+                    saveNote={saveNote} noteInputs={noteInputs} setNoteInputs={setNoteInputs} setDecision={setDecision} />
                 ))}
               </div>
             </>
